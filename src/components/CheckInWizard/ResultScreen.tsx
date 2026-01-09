@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 
 import { TriageLevel } from '../../types/checkIn';
 
@@ -24,6 +24,20 @@ export const ResultScreen = ({
   description,
   accentColor,
 }: ResultScreenProps) => {
+  const router = useRouter();
+
+  const handleExportSummary = () => {
+    router.push('/export-summary');
+  };
+
+  const handleExplainResult = () => {
+    router.push('/explain-result');
+  };
+
+  const handleDone = () => {
+    router.push('/');
+  };
+
   return (
     <View style={styles.container}>
       <View style={[styles.banner, { backgroundColor: accentColor }]}>
@@ -34,16 +48,15 @@ export const ResultScreen = ({
       <Text style={styles.actionText}>{ACTIONS_BY_LEVEL[level]}</Text>
 
       <View style={styles.actions}>
-        <Link href="/" asChild>
-          <Pressable style={styles.buttonPrimary}>
-            <Text style={styles.buttonPrimaryText}>Back to Home</Text>
-          </Pressable>
-        </Link>
-        <Link href="/check-in" asChild>
-          <Pressable style={styles.buttonSecondary}>
-            <Text style={styles.buttonSecondaryText}>New Check-In</Text>
-          </Pressable>
-        </Link>
+        <Pressable onPress={handleExportSummary} style={styles.buttonSecondary}>
+          <Text style={styles.buttonSecondaryText}>Export summary</Text>
+        </Pressable>
+        <Pressable onPress={handleExplainResult} style={styles.buttonSecondary}>
+          <Text style={styles.buttonSecondaryText}>Explain result (AI placeholder)</Text>
+        </Pressable>
+        <Pressable onPress={handleDone} style={styles.buttonPrimary}>
+          <Text style={styles.buttonPrimaryText}>Done</Text>
+        </Pressable>
       </View>
 
       <Text style={styles.disclaimer}>
