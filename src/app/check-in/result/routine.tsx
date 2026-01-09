@@ -2,14 +2,14 @@ import React from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 
-import { ResultScreen } from '../../../components/CheckInWizard/ResultScreen';
+import { TriageResultScreen } from '../../../components/CheckInWizard/TriageResultScreen';
 
 const RoutineResultScreen = () => {
   const { id } = useLocalSearchParams<{ id?: string }>();
 
   return (
     <View style={styles.container}>
-      <ResultScreen
+      <TriageResultScreen
         level="routine"
         title="Routine"
         description="No urgent red flags today. Keep tracking your symptoms."

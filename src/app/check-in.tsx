@@ -9,6 +9,14 @@ const CheckInScreen = () => {
   const router = useRouter();
 
   const handleComplete = (result: TriageLevel, entryId: string) => {
+    if (result === 'emergency') {
+      router.push({
+        pathname: '/check-in/result/emergency',
+        params: { id: entryId },
+      });
+      return;
+    }
+
     router.push({
       pathname: `/check-in/result/${result}`,
       params: { id: entryId },
