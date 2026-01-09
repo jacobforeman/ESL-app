@@ -3,7 +3,6 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
 
 import { TriageLevel } from '../../types/checkIn';
-import { AiResponseDisclaimer } from '../AiChat/AiResponseDisclaimer';
 
 type ResultScreenProps = {
   level: TriageLevel;
@@ -47,7 +46,6 @@ export const ResultScreen = ({
         </Link>
       </View>
 
-      <AiResponseDisclaimer />
     </View>
   );
 };

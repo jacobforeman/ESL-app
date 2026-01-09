@@ -3,6 +3,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 
 import { ResultScreen } from '../../../components/CheckInWizard/ResultScreen';
+import { AiResponseDisclaimer } from '../../../components/AiChat/AiResponseDisclaimer';
 
 const EmergencyResultScreen = () => {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -15,6 +16,9 @@ const EmergencyResultScreen = () => {
         description="Your responses suggest a potentially life-threatening issue."
         accentColor="#dc2626"
       />
+      <View style={styles.disclaimer}>
+        <AiResponseDisclaimer />
+      </View>
       {id ? <Text style={styles.history}>Saved check-in ID: {id}</Text> : null}
     </View>
   );
@@ -27,8 +31,12 @@ const styles = StyleSheet.create({
   history: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+    marginTop: 12,
     fontSize: 12,
     color: '#6b7280',
+  },
+  disclaimer: {
+    paddingHorizontal: 20,
   },
 });
 
