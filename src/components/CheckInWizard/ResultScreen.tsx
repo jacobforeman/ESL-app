@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, ToastAndroid, View } from 'react-native';
 import { Link } from 'expo-router';
 
 import { TriageLevel } from '../../types/checkIn';
+import { exportSummary } from '../../export/summaryGenerator';
+import Clipboard from '@react-native-clipboard/clipboard';
 
 type ResultScreenProps = {
   level: TriageLevel;
@@ -24,6 +26,24 @@ export const ResultScreen = ({
   description,
   accentColor,
 }: ResultScreenProps) => {
+  const handleCopySummary = async () => {
+    try {
+      const { combined } = await exportSummary();
+      Clipboard.setString(combined);
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Summary copied to clipboard.', ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Copied', 'Summary copied to clipboard.');
+      }
+    } catch (error) {
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Unable to copy summary.', ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Copy failed', 'Unable to copy summary.');
+      }
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={[styles.banner, { backgroundColor: accentColor }]}>
@@ -34,6 +54,9 @@ export const ResultScreen = ({
       <Text style={styles.actionText}>{ACTIONS_BY_LEVEL[level]}</Text>
 
       <View style={styles.actions}>
+        <Pressable onPress={handleCopySummary} style={styles.buttonSecondary}>
+          <Text style={styles.buttonSecondaryText}>Copy summary</Text>
+        </Pressable>
         <Link href="/" asChild>
           <Pressable style={styles.buttonPrimary}>
             <Text style={styles.buttonPrimaryText}>Back to Home</Text>
