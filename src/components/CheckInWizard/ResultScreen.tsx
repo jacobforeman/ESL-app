@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
 
+import { AiActionsPanel } from '../AiChat/AiActionsPanel';
 import { TriageLevel } from '../../types/checkIn';
 
 type ResultScreenProps = {
@@ -29,9 +30,12 @@ export const ResultScreen = ({
       <View style={[styles.banner, { backgroundColor: accentColor }]}>
         <Text style={styles.bannerText}>{title}</Text>
       </View>
+      <Text style={styles.readOnlyLabel}>Triage level (read-only)</Text>
       <Text style={styles.description}>{description}</Text>
       <Text style={styles.actionTitle}>Recommended action</Text>
       <Text style={styles.actionText}>{ACTIONS_BY_LEVEL[level]}</Text>
+
+      <AiActionsPanel heading="AI support" />
 
       <View style={styles.actions}>
         <Link href="/" asChild>
@@ -67,6 +71,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 20,
     fontWeight: '700',
+  },
+  readOnlyLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 8,
   },
   description: {
     fontSize: 16,

@@ -1,11 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
+import { AiActionsPanel } from '../components/AiChat/AiActionsPanel';
+
 const AiScreen = () => {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>AI Companion</Text>
       <Text style={styles.subtitle}>Get guidance and explanations in plain language.</Text>
+      <AiActionsPanel heading="How AI can help" />
     </View>
   );
 };
