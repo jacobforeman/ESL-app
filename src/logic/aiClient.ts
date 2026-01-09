@@ -16,8 +16,12 @@ export interface AiClientOptions {
   model?: string;
 }
 
-export const buildGuardedMessages = (userPrompt: string, context?: string): AiMessage[] => {
-  const guardrails = context ? `${SYSTEM_GUARDRAILS}\nContext: ${context}` : SYSTEM_GUARDRAILS;
+export const buildGuardedMessages = (
+  userPrompt: string,
+  context?: string,
+  systemPrompt: string = SYSTEM_GUARDRAILS,
+): AiMessage[] => {
+  const guardrails = context ? `${systemPrompt}\nContext: ${context}` : systemPrompt;
   return [
     { role: 'system', content: guardrails },
     { role: 'user', content: userPrompt },
@@ -28,10 +32,11 @@ export const requestAiCompletion = async (
   userPrompt: string,
   options: AiClientOptions,
   context?: string,
+  systemPrompt?: string,
 ): Promise<string> => {
   const endpoint = options.endpoint ?? 'https://api.openai.com/v1/chat/completions';
   const model = options.model ?? 'gpt-4o-mini';
-  const messages = buildGuardedMessages(userPrompt, context);
+  const messages = buildGuardedMessages(userPrompt, context, systemPrompt);
 
   const response = await fetch(endpoint, {
     method: 'POST',
