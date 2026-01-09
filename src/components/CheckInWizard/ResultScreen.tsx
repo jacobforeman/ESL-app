@@ -3,7 +3,7 @@ import { Alert, Platform, Pressable, StyleSheet, Text, ToastAndroid, View } from
 import { Link } from 'expo-router';
 
 import { TriageLevel } from '../../types/checkIn';
-import { exportSummary } from '../../export/summaryGenerator';
+import { exportSummary } from '../../export/exportSummary';
 import Clipboard from '@react-native-clipboard/clipboard';
 
 type ResultScreenProps = {
