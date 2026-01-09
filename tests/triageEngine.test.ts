@@ -80,4 +80,16 @@ describe('runTriageEngine red flags', () => {
     expect(result.level).toBe('SELF_MONITOR');
     expect(result.ruleTriggers).toHaveLength(0);
   });
+
+  it('does not treat unknown booleans as true', () => {
+    const checkIn: CheckIn = {
+      ...baseCheckIn,
+      symptoms: { ...baseCheckIn.symptoms, vomitingBlood: 'unknown' },
+    };
+
+    const result = runTriageEngine(checkIn);
+
+    expect(result.level).toBe('SELF_MONITOR');
+    expect(result.ruleTriggers).toHaveLength(0);
+  });
 });

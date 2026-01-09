@@ -99,10 +99,15 @@ const redFlagRules: Rule[] = [
     reasons: ['Fever with abdominal pain may signal a serious infection.'],
     nextSteps: ['Call emergency services or go to the ER immediately.'],
     recommendedAction: 'Seek emergency care now.',
-    predicate: (checkIn) =>
-      isNumber(checkIn.vitals?.temperatureF) &&
-      checkIn.vitals!.temperatureF >= 100.4 &&
-      hasAbdominalPain(checkIn.symptoms.abdominalPain),
+    predicate: (checkIn) => {
+      const temperatureF = checkIn.vitals?.temperatureF;
+
+      return (
+        isNumber(temperatureF) &&
+        temperatureF >= 100.4 &&
+        hasAbdominalPain(checkIn.symptoms.abdominalPain)
+      );
+    },
   },
   {
     id: 'rapid-distension-breathing-difficulty',
