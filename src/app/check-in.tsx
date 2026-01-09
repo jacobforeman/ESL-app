@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { AiActionsPanel } from '../components/AiChat/AiActionsPanel';
 import { CheckInWizard } from '../components/CheckInWizard/CheckInWizard';
 import { TriageLevel } from '../types/checkIn';
 
@@ -18,6 +19,7 @@ const CheckInScreen = () => {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <CheckInWizard onComplete={handleComplete} />
+      <AiActionsPanel heading="AI help during check-in" />
     </ScrollView>
   );
 };
