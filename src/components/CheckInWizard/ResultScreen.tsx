@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
 
 import { TriageLevel } from '../../types/checkIn';
+import { AiResponseDisclaimer } from '../AiChat/AiResponseDisclaimer';
 
 type ResultScreenProps = {
   level: TriageLevel;
@@ -46,9 +47,7 @@ export const ResultScreen = ({
         </Link>
       </View>
 
-      <Text style={styles.disclaimer}>
-        This app does not replace medical care. If symptoms worsen, seek immediate help.
-      </Text>
+      <AiResponseDisclaimer />
     </View>
   );
 };
@@ -107,9 +106,5 @@ const styles = StyleSheet.create({
   buttonSecondaryText: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  disclaimer: {
-    fontSize: 12,
-    color: '#6b7280',
   },
 });
