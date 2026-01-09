@@ -36,6 +36,7 @@ export interface MedConfigItem {
   name: string;
   dose: string;
   schedule: string[];
+  critical?: boolean;
 }
 
 export interface MedConfig {

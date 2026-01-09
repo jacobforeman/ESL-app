@@ -1,3 +1,5 @@
+import type { MedAdherenceSnapshotItem } from './meds';
+
 export type QuestionType = 'boolean' | 'single-select' | 'number' | 'text';
 
 export type QuestionOption = {
@@ -25,6 +27,11 @@ export type QuestionFlowConfig = {
 export type CheckInAnswers = Record<string, boolean | string | number>;
 
 export type TriageLevel = 'emergency' | 'urgent' | 'routine' | 'self-monitor';
+
+export type TriageInput = {
+  answers: CheckInAnswers;
+  medAdherence?: MedAdherenceSnapshotItem[];
+};
 
 export type CheckInHistoryEntry = {
   id: string;

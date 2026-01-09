@@ -1,12 +1,13 @@
-import { CheckInAnswers, TriageLevel } from '../types/checkIn';
+import { TriageInput, TriageLevel } from '../types/checkIn';
 
-export const runTriage = (answers: CheckInAnswers): TriageLevel => {
+export const runTriage = ({ answers, medAdherence }: TriageInput): TriageLevel => {
   const vomitingBlood = answers.vomitingBlood === true;
   const severeConfusion = answers.severeConfusion === true;
   const fever = answers.fever === true;
   const abdominalPain = answers.abdominalPain;
   const missedMeds = answers.missedMeds === true;
   const weightChange = typeof answers.weightChange === 'number' ? answers.weightChange : 0;
+  const criticalMissed = medAdherence?.some((med) => med.isCritical && med.status === 'missed') ?? false;
 
   if (vomitingBlood || severeConfusion) {
     return 'emergency';
@@ -16,7 +17,7 @@ export const runTriage = (answers: CheckInAnswers): TriageLevel => {
     return 'emergency';
   }
 
-  if (fever || abdominalPain === 'moderate' || weightChange >= 5) {
+  if (criticalMissed || fever || abdominalPain === 'moderate' || weightChange >= 5) {
     return 'urgent';
   }
 
