@@ -2,22 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { Button, SafeAreaView, StyleSheet, View } from 'react-native';
 import CheckInScreen from './src/screens/CheckInScreen';
 import HomeScreen from './src/screens/HomeScreen';
-import { loadTriageHistory, type TriageResult } from './src/storage/storage';
+import { readStore } from './src/storage';
+import { triageHistoryStore } from './src/storage/stores';
+import type { TriageHistoryEntry } from './src/storage/types';
 
 const App = () => {
   const [showCheckIn, setShowCheckIn] = useState(false);
-  const [lastResult, setLastResult] = useState<TriageResult | null>(null);
+  const [lastResult, setLastResult] = useState<TriageHistoryEntry | null>(null);
 
   useEffect(() => {
     const loadHistory = async () => {
-      const history = await loadTriageHistory();
-      setLastResult(history[history.length - 1] ?? null);
+      const { data } = await readStore(triageHistoryStore);
+      setLastResult(data[0] ?? null);
     };
 
     loadHistory();
   }, []);
 
-  const handleResultSaved = (result: TriageResult) => {
+  const handleResultSaved = (result: TriageHistoryEntry) => {
     setLastResult(result);
     setShowCheckIn(false);
   };

@@ -84,7 +84,7 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
       const validated = schema.parse(answers) as z.infer<typeof schema>;
       const triageResult = runTriage({ answers: validated, medAdherence: adherenceSnapshot });
       const entry = await appendCheckInHistory(validated, triageResult);
-      onComplete(triageResult, entry.id);
+      onComplete(triageResult, entry.checkIn.id);
     } catch (error) {
       if (error instanceof z.ZodError) {
         const firstError = error.errors[0];

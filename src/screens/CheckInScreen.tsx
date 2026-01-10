@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
-import { saveCheckIn, saveTriageResult, type TriageResult, type TriageResultInput } from '../storage/storage';
+import { appendCheckInHistory } from '../state/checkInHistory';
+import { CheckInAnswers, TriageLevel } from '../types/checkIn';
+import type { TriageHistoryEntry } from '../storage/types';
 
 type CheckInScreenProps = {
-  onResultSaved: (result: TriageResult) => void;
+  onResultSaved: (result: TriageHistoryEntry) => void;
 };
 
 const CheckInScreen = ({ onResultSaved }: CheckInScreenProps) => {
@@ -12,19 +14,22 @@ const CheckInScreen = ({ onResultSaved }: CheckInScreenProps) => {
   const handleSubmit = async () => {
     setIsSubmitting(true);
 
-    const checkIn = {
-      symptoms: ['Fatigue', 'Swelling'],
+    const answers: CheckInAnswers = {
+      vomitingBlood: false,
+      severeConfusion: false,
+      fever: false,
+      abdominalPain: 'mild',
+      missedMeds: true,
+      weightChange: 0,
       notes: 'Increased fatigue compared to yesterday.',
     };
 
-    const triageResult: TriageResultInput = {
-      level: 'Routine',
-      summary: 'Symptoms are stable. Continue monitoring and discuss at next appointment.',
-    };
-
-    await saveCheckIn(checkIn);
-    const savedResult = await saveTriageResult(triageResult);
-    onResultSaved(savedResult);
+    const triageResult: TriageLevel = 'routine';
+    const entry = await appendCheckInHistory(answers, triageResult);
+    onResultSaved({
+      ...entry.triage,
+      rationale: ['Sample triage note saved from demo check-in.'],
+    });
 
     setIsSubmitting(false);
   };

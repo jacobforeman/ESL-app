@@ -1,9 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import type { TriageResult } from '../storage/storage';
+import type { TriageHistoryEntry } from '../storage/types';
 
 type HomeScreenProps = {
-  lastResult: TriageResult | null;
+  lastResult: TriageHistoryEntry | null;
 };
 
 const HomeScreen = ({ lastResult }: HomeScreenProps) => {
@@ -13,8 +13,10 @@ const HomeScreen = ({ lastResult }: HomeScreenProps) => {
       {lastResult ? (
         <View style={styles.card}>
           <Text style={styles.level}>{lastResult.level}</Text>
-          <Text style={styles.summary}>{lastResult.summary}</Text>
-          <Text style={styles.timestamp}>{new Date(lastResult.timestamp).toLocaleString()}</Text>
+          <Text style={styles.summary}>
+            {lastResult.rationale?.length ? lastResult.rationale.join(' ') : 'No triage notes saved yet.'}
+          </Text>
+          <Text style={styles.timestamp}>{new Date(lastResult.createdAt).toLocaleString()}</Text>
         </View>
       ) : (
         <Text style={styles.empty}>No triage results yet. Complete a check-in to get started.</Text>
