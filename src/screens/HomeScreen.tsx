@@ -1,5 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { readStore } from '../storage';
+import { profileStore } from '../storage/stores';
+import type { CaregiverMode } from '../storage/types';
+import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
 import type { TriageHistoryEntry } from '../storage/types';
 
 type HomeScreenProps = {
@@ -7,6 +11,19 @@ type HomeScreenProps = {
 };
 
 const HomeScreen = ({ lastResult }: HomeScreenProps) => {
+  const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data } = await readStore(profileStore);
+      setCaregiverMode(data.caregiverMode);
+    };
+
+    loadProfile().catch((error) => {
+      console.warn('Unable to load profile for home screen.', error);
+    });
+  }, []);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Latest Triage Result</Text>
@@ -19,7 +36,9 @@ const HomeScreen = ({ lastResult }: HomeScreenProps) => {
           <Text style={styles.timestamp}>{new Date(lastResult.createdAt).toLocaleString()}</Text>
         </View>
       ) : (
-        <Text style={styles.empty}>No triage results yet. Complete a check-in to get started.</Text>
+        <Text style={styles.empty}>
+          No triage results yet. Complete a check-in to get started for {getCaregiverPossessive(caregiverMode)} care.
+        </Text>
       )}
     </View>
   );

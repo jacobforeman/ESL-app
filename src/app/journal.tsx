@@ -5,17 +5,20 @@ import ActionButton from '../components/ActionButton';
 import { addJournalEntry } from '../logic/journal';
 import { readStore } from '../storage';
 import { journalStore, profileStore } from '../storage/stores';
-import type { JournalEntry } from '../storage/types';
+import type { CaregiverMode, JournalEntry } from '../storage/types';
 import { colors } from '../theme/colors';
+import { getCaregiverLabel, getCaregiverPossessive } from '../utils/caregiverPhrasing';
 
 const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const JournalScreen = () => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [text, setText] = useState('');
-  const [modeLabel, setModeLabel] = useState('patient');
+  const [modeLabel, setModeLabel] = useState<CaregiverMode>('patient');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const patientEntries = entries.filter((entry) => entry.author === 'patient');
+  const caregiverEntries = entries.filter((entry) => entry.author === 'caregiver');
 
   const loadEntries = useCallback(async () => {
     const [{ data: journal }, { data: profile }] = await Promise.all([
@@ -61,15 +64,21 @@ const JournalScreen = () => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Journal</Text>
-      <Text style={styles.subtitle}>Capture notes, symptoms, and daily reflections.</Text>
+      <Text style={styles.subtitle}>
+        Capture notes, symptoms, and daily reflections about {getCaregiverPossessive(modeLabel)} day.
+      </Text>
 
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>New entry</Text>
-        <Text style={styles.sectionSubtitle}>Currently logging as {modeLabel}.</Text>
+        <Text style={styles.sectionTitle}>
+          {modeLabel === 'caregiver' ? 'New caregiver note' : 'New entry'}
+        </Text>
+        <Text style={styles.sectionSubtitle}>
+          Logging as {getCaregiverLabel(modeLabel)}.
+        </Text>
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Share updates, concerns, or questions"
+          placeholder={`Share updates, concerns, or questions about ${getCaregiverPossessive(modeLabel)} health`}
           placeholderTextColor={colors.textSecondary}
           style={styles.input}
           multiline
@@ -82,36 +91,100 @@ const JournalScreen = () => {
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </View>
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Recent entries</Text>
-        {entries.length === 0 ? (
-          <Text style={styles.emptyText}>No journal entries yet.</Text>
-        ) : (
-          entries.map((entry) => (
-            <View key={entry.id} style={styles.entryRow}>
-              <View style={styles.entryHeader}>
-                <Text style={styles.entryMeta}>
-                  {entry.author === 'caregiver' ? 'Caregiver' : 'Patient'} ·{' '}
-                  {new Date(entry.createdAt).toLocaleDateString()}
-                </Text>
+      {modeLabel === 'caregiver' ? (
+        <>
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Patient history</Text>
+            {patientEntries.length === 0 ? (
+              <Text style={styles.emptyText}>No patient entries yet.</Text>
+            ) : (
+              patientEntries.map((entry) => (
+                <View key={entry.id} style={styles.entryRow}>
+                  <View style={styles.entryHeader}>
+                    <Text style={styles.entryMeta}>
+                      Patient · {new Date(entry.createdAt).toLocaleDateString()}
+                    </Text>
+                    {entry.redFlags?.length ? (
+                      <Text style={styles.flagTag}>Red flag</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.entryText}>{entry.text}</Text>
+                  {entry.redFlags?.length ? (
+                    <View style={styles.flagList}>
+                      {entry.redFlags.map((flag) => (
+                        <Text key={flag} style={styles.flagItem}>
+                          • {flag}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Caregiver notes</Text>
+            {caregiverEntries.length === 0 ? (
+              <Text style={styles.emptyText}>No caregiver notes yet.</Text>
+            ) : (
+              caregiverEntries.map((entry) => (
+                <View key={entry.id} style={styles.entryRow}>
+                  <View style={styles.entryHeader}>
+                    <Text style={styles.entryMeta}>
+                      Caregiver · {new Date(entry.createdAt).toLocaleDateString()}
+                    </Text>
+                    {entry.redFlags?.length ? (
+                      <Text style={styles.flagTag}>Red flag</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.entryText}>{entry.text}</Text>
+                  {entry.redFlags?.length ? (
+                    <View style={styles.flagList}>
+                      {entry.redFlags.map((flag) => (
+                        <Text key={flag} style={styles.flagItem}>
+                          • {flag}
+                        </Text>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </View>
+        </>
+      ) : (
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Recent entries</Text>
+          {entries.length === 0 ? (
+            <Text style={styles.emptyText}>No journal entries yet.</Text>
+          ) : (
+            entries.map((entry) => (
+              <View key={entry.id} style={styles.entryRow}>
+                <View style={styles.entryHeader}>
+                  <Text style={styles.entryMeta}>
+                    {entry.author === 'caregiver' ? 'Caregiver' : 'Patient'} ·{' '}
+                    {new Date(entry.createdAt).toLocaleDateString()}
+                  </Text>
+                  {entry.redFlags?.length ? (
+                    <Text style={styles.flagTag}>Red flag</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.entryText}>{entry.text}</Text>
                 {entry.redFlags?.length ? (
-                  <Text style={styles.flagTag}>Red flag</Text>
+                  <View style={styles.flagList}>
+                    {entry.redFlags.map((flag) => (
+                      <Text key={flag} style={styles.flagItem}>
+                        • {flag}
+                      </Text>
+                    ))}
+                  </View>
                 ) : null}
               </View>
-              <Text style={styles.entryText}>{entry.text}</Text>
-              {entry.redFlags?.length ? (
-                <View style={styles.flagList}>
-                  {entry.redFlags.map((flag) => (
-                    <Text key={flag} style={styles.flagItem}>
-                      • {flag}
-                    </Text>
-                  ))}
-                </View>
-              ) : null}
-            </View>
-          ))
-        )}
-      </View>
+            ))
+          )}
+        </View>
+      )}
     </ScrollView>
   );
 };

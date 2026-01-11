@@ -4,9 +4,10 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import ActionButton from '../components/ActionButton';
 import { isAiEnabled, requestStrictAiCompletion } from '../logic/AiHelper';
 import { readStore } from '../storage';
-import { triageHistoryStore } from '../storage/stores';
-import type { TriageHistoryEntry } from '../storage/types';
+import { profileStore, triageHistoryStore } from '../storage/stores';
+import type { CaregiverMode, TriageHistoryEntry } from '../storage/types';
 import { colors } from '../theme/colors';
+import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
 
 const ExplainResultScreen = () => {
   const aiEnabled = isAiEnabled();
@@ -15,10 +16,15 @@ const ExplainResultScreen = () => {
   const [response, setResponse] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
 
   useEffect(() => {
     const loadLatest = async () => {
-      const { data } = await readStore(triageHistoryStore);
+      const [{ data: profile }, { data }] = await Promise.all([
+        readStore(profileStore),
+        readStore(triageHistoryStore),
+      ]);
+      setCaregiverMode(profile.caregiverMode);
       setTriageResult(data[0] ?? null);
     };
 
@@ -68,7 +74,7 @@ const ExplainResultScreen = () => {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Explain Result</Text>
       <Text style={styles.subtitle}>
-        Ask the AI companion to explain the latest triage result in plain language.
+        Ask the AI companion to explain {getCaregiverPossessive(caregiverMode)} latest triage result in plain language.
       </Text>
 
       {!aiEnabled ? (

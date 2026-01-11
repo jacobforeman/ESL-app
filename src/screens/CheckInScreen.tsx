@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import { appendCheckInHistory } from '../state/checkInHistory';
+import { readStore } from '../storage';
+import { profileStore } from '../storage/stores';
+import type { CaregiverMode } from '../storage/types';
 import { CheckInAnswers, TriageLevel } from '../types/checkIn';
 import type { TriageHistoryEntry } from '../storage/types';
+import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
 
 type CheckInScreenProps = {
   onResultSaved: (result: TriageHistoryEntry) => void;
@@ -10,6 +14,18 @@ type CheckInScreenProps = {
 
 const CheckInScreen = ({ onResultSaved }: CheckInScreenProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data } = await readStore(profileStore);
+      setCaregiverMode(data.caregiverMode);
+    };
+
+    loadProfile().catch((error) => {
+      console.warn('Unable to load profile for check-in screen.', error);
+    });
+  }, []);
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -38,7 +54,7 @@ const CheckInScreen = ({ onResultSaved }: CheckInScreenProps) => {
     <View style={styles.container}>
       <Text style={styles.title}>Daily Check-In</Text>
       <Text style={styles.description}>
-        Submit your symptoms to receive a triage recommendation.
+        Submit {getCaregiverPossessive(caregiverMode)} symptoms to receive a triage recommendation.
       </Text>
       <Button
         title={isSubmitting ? 'Submitting...' : 'Submit Check-In'}

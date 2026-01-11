@@ -11,10 +11,11 @@ import {
 import ActionButton from '../components/ActionButton';
 import { addMedication, getTodayAdherenceSnapshot, recordDose, summarizeAdherence } from '../logic/medTracker';
 import { readStore } from '../storage';
-import { medConfigStore } from '../storage/stores';
-import type { MedConfigItem } from '../storage/types';
+import { medConfigStore, profileStore } from '../storage/stores';
+import type { CaregiverMode, MedConfigItem } from '../storage/types';
 import { colors } from '../theme/colors';
 import type { MedAdherenceSnapshotItem } from '../types/meds';
+import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
 
 const todayKey = (): string => new Date().toISOString().slice(0, 10);
 const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -29,13 +30,16 @@ const MedsScreen = () => {
   const [critical, setCritical] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
 
   const loadData = useCallback(async () => {
-    const [{ data: config }, adherenceSnapshot, adherenceSummary] = await Promise.all([
+    const [{ data: profile }, { data: config }, adherenceSnapshot, adherenceSummary] = await Promise.all([
+      readStore(profileStore),
       readStore(medConfigStore),
       getTodayAdherenceSnapshot(),
       summarizeAdherence(),
     ]);
+    setCaregiverMode(profile.caregiverMode);
     setMeds(config.meds);
     setSnapshot(adherenceSnapshot);
     setSummary(adherenceSummary);
@@ -106,10 +110,14 @@ const MedsScreen = () => {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Medication Tracker</Text>
-      <Text style={styles.subtitle}>Review your daily medications and log each dose.</Text>
+      <Text style={styles.subtitle}>
+        Review {getCaregiverPossessive(caregiverMode)} daily medications and log each dose.
+      </Text>
 
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Today&apos;s adherence</Text>
+        <Text style={styles.sectionTitle}>
+          Today&apos;s adherence for {getCaregiverPossessive(caregiverMode)} medications
+        </Text>
         <Text style={styles.sectionSubtitle}>
           {summary.taken} taken · {summary.missed} missed
         </Text>
