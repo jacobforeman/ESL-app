@@ -4,11 +4,11 @@ import { z } from 'zod';
 
 import { questionFlowConfig } from '../../config/questionFlow';
 import { buildCheckInSchema } from '../../logic/checkInSchema';
-import { getTodayAdherenceSnapshot } from '../../logic/medTracker';
+import { getTodayAdherenceSnapshot, recordDose } from '../../logic/medTracker';
 import { runTriage } from '../../logic/triageEngine';
 import { appendCheckInHistory } from '../../state/checkInHistory';
 import { readStore } from '../../storage';
-import { profileStore } from '../../storage/stores';
+import { journalStore, profileStore } from '../../storage/stores';
 import type { CaregiverMode } from '../../storage/types';
 import { CheckInAnswers, QuestionDefinition, TriageLevel } from '../../types/checkIn';
 import { MedAdherenceSnapshotItem, MedAdherenceStatus } from '../../types/meds';
@@ -27,6 +27,7 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
   const [adherenceSnapshot, setAdherenceSnapshot] = useState<MedAdherenceSnapshotItem[]>([]);
   const [adherenceError, setAdherenceError] = useState<string | null>(null);
   const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
+  const [journalRedFlags, setJournalRedFlags] = useState<string[]>([]);
 
   const schema = useMemo(() => buildCheckInSchema(questions), [questions]);
   const totalSteps = questions.length + 1;
@@ -38,13 +39,23 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
 
     const loadSnapshot = async () => {
       try {
-        const [{ data: profile }, snapshot] = await Promise.all([
+        const [{ data: profile }, snapshot, { data: journalEntries }] = await Promise.all([
           readStore(profileStore),
           getTodayAdherenceSnapshot(),
+          readStore(journalStore),
         ]);
         if (isMounted) {
           setCaregiverMode(profile.caregiverMode);
           setAdherenceSnapshot(snapshot);
+          const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+          const recentFlags = journalEntries.flatMap((entry) => {
+            const createdAt = new Date(entry.createdAt).getTime();
+            if (Number.isNaN(createdAt) || createdAt < cutoff) {
+              return [];
+            }
+            return entry.redFlags ?? [];
+          });
+          setJournalRedFlags(Array.from(new Set(recentFlags)));
         }
       } catch (error) {
         console.warn('Unable to load adherence snapshot.', error);
@@ -91,9 +102,28 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
     setErrorMessage(null);
     try {
       const validated = schema.parse(answers) as z.infer<typeof schema>;
-      const triageResult = runTriage({ answers: validated, medAdherence: adherenceSnapshot });
-      const entry = await appendCheckInHistory(validated, triageResult);
-      onComplete(triageResult, entry.checkIn.id);
+      const triageDecision = runTriage({
+        answers: validated,
+        medAdherence: adherenceSnapshot,
+        journalRedFlags,
+      });
+      const dateKey = new Date().toISOString().slice(0, 10);
+      for (const med of adherenceSnapshot) {
+        if (med.status === 'unknown') {
+          continue;
+        }
+        await recordDose({
+          id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          medId: med.medId,
+          date: dateKey,
+          taken: med.status === 'taken',
+        });
+      }
+      const entry = await appendCheckInHistory(validated, triageDecision, {
+        journalRedFlags,
+        medAdherence: adherenceSnapshot,
+      });
+      onComplete(triageDecision.level, entry.checkIn.id);
     } catch (error) {
       if (error instanceof z.ZodError) {
         const firstError = error.errors[0];

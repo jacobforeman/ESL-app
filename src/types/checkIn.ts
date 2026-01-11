@@ -31,6 +31,13 @@ export type TriageLevel = 'emergency' | 'urgent' | 'routine' | 'self-monitor';
 export type TriageInput = {
   answers: CheckInAnswers;
   medAdherence?: MedAdherenceSnapshotItem[];
+  journalRedFlags?: string[];
+};
+
+export type TriageDecision = {
+  level: TriageLevel;
+  rationale: string[];
+  recommendedAction: string;
 };
 
 export type CheckInHistoryEntry = {

@@ -2,12 +2,12 @@ import { CaregiverMode } from '../storage/types';
 
 const caregiverPrefixes: Record<CaregiverMode, string> = {
   patient: 'You',
-  caregiver: 'Your loved one',
+  caregiver: 'Your care recipient',
 };
 
 const caregiverPossessives: Record<CaregiverMode, string> = {
   patient: 'your',
-  caregiver: "your loved one's",
+  caregiver: "your care recipient's",
 };
 
 const caregiverLabels: Record<CaregiverMode, string> = {

@@ -9,7 +9,7 @@ describe('buildCaregiverPhrase', () => {
 
   it('uses caregiver phrasing when in caregiver mode', () => {
     expect(buildCaregiverPhrase('caregiver', 'reported new symptoms.')).toBe(
-      'Your loved one reported new symptoms.',
+      'Your care recipient reported new symptoms.',
     );
   });
 });

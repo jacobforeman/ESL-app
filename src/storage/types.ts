@@ -29,6 +29,7 @@ export interface TriageHistoryEntry {
   createdAt: string;
   level: TriageLevel;
   rationale: string[];
+  recommendedAction?: string;
 }
 
 export interface MedConfigItem {
