@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { readStore } from '../storage';
-import { profileStore } from '../storage/stores';
+import { journalStore, medAdherenceStore, profileStore } from '../storage/stores';
 import type { CaregiverMode } from '../storage/types';
 import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
 import type { TriageHistoryEntry } from '../storage/types';
@@ -10,13 +10,54 @@ type HomeScreenProps = {
   lastResult: TriageHistoryEntry | null;
 };
 
+type AdherenceSummary = {
+  date: string;
+  taken: number;
+  missed: number;
+};
+
+type JournalSummary = {
+  count: number;
+  redFlags: number;
+  lastEntryAt?: string;
+};
+
 const HomeScreen = ({ lastResult }: HomeScreenProps) => {
   const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
+  const [adherenceSummary, setAdherenceSummary] = useState<AdherenceSummary | null>(null);
+  const [journalSummary, setJournalSummary] = useState<JournalSummary | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
-      const { data } = await readStore(profileStore);
-      setCaregiverMode(data.caregiverMode);
+      const [{ data: profile }, { data: adherence }, { data: journal }] = await Promise.all([
+        readStore(profileStore),
+        readStore(medAdherenceStore),
+        readStore(journalStore),
+      ]);
+      setCaregiverMode(profile.caregiverMode);
+
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const todayEntries = adherence.filter((entry) => entry.date === todayKey);
+      setAdherenceSummary({
+        date: todayKey,
+        taken: todayEntries.filter((entry) => entry.taken).length,
+        missed: todayEntries.filter((entry) => !entry.taken).length,
+      });
+
+      const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const recentJournal = journal.filter((entry) => {
+        const createdAt = new Date(entry.createdAt).getTime();
+        return !Number.isNaN(createdAt) && createdAt >= cutoff;
+      });
+      const redFlags = recentJournal.reduce((count, entry) => {
+        return count + (entry.redFlags?.length ?? 0);
+      }, 0);
+      const lastEntry = recentJournal[0];
+      setJournalSummary({
+        count: recentJournal.length,
+        redFlags,
+        lastEntryAt: lastEntry?.createdAt,
+      });
     };
 
     loadProfile().catch((error) => {
@@ -40,6 +81,44 @@ const HomeScreen = ({ lastResult }: HomeScreenProps) => {
           No triage results yet. Complete a check-in to get started for {getCaregiverPossessive(caregiverMode)} care.
         </Text>
       )}
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Medication adherence</Text>
+        {adherenceSummary ? (
+          <Text style={styles.summary}>
+            {adherenceSummary.taken + adherenceSummary.missed === 0
+              ? `No doses recorded for ${adherenceSummary.date}.`
+              : `${adherenceSummary.taken} taken, ${adherenceSummary.missed} missed today.`}
+          </Text>
+        ) : (
+          <Text style={styles.empty}>No adherence data yet.</Text>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Recent journal activity</Text>
+        {journalSummary ? (
+          <>
+            <Text style={styles.summary}>
+              {journalSummary.count === 0
+                ? 'No journal entries in the last week.'
+                : `${journalSummary.count} entries in the last week.`}
+            </Text>
+            {journalSummary.redFlags > 0 ? (
+              <Text style={styles.summary}>
+                {journalSummary.redFlags} red flag note{journalSummary.redFlags > 1 ? 's' : ''} logged.
+              </Text>
+            ) : null}
+            {journalSummary.lastEntryAt ? (
+              <Text style={styles.timestamp}>
+                Last entry: {new Date(journalSummary.lastEntryAt).toLocaleDateString()}
+              </Text>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.empty}>No journal activity yet.</Text>
+        )}
+      </View>
     </View>
   );
 };
@@ -63,6 +142,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   level: {
     fontSize: 18,

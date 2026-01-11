@@ -1,29 +1,71 @@
-import { TriageInput, TriageLevel } from '../types/checkIn';
+import { evaluateTriage } from '../modules/core/triageEngine';
+import type { CheckIn } from '../modules/core/validationSchemas';
+import { TriageDecision, TriageInput } from '../types/checkIn';
 
-export const runTriage = ({ answers, medAdherence }: TriageInput): TriageLevel => {
-  const vomitingBlood = answers.vomitingBlood === true;
-  const severeConfusion = answers.severeConfusion === true;
-  const fever = answers.fever === true;
-  const abdominalPain = answers.abdominalPain;
-  const missedMeds = answers.missedMeds === true;
-  const weightChange = typeof answers.weightChange === 'number' ? answers.weightChange : 0;
-  const criticalMissed = medAdherence?.some((med) => med.isCritical && med.status === 'missed') ?? false;
+const poundsToKg = (value: number): number => value * 0.453592;
 
-  if (vomitingBlood || severeConfusion) {
-    return 'emergency';
-  }
+const normalizeFlags = (flags: string[] | undefined): Set<string> =>
+  new Set((flags ?? []).map((flag) => flag.toLowerCase()));
 
-  if (fever && abdominalPain === 'severe') {
-    return 'emergency';
-  }
+const buildCheckIn = (input: TriageInput): CheckIn => {
+  const { answers, medAdherence } = input;
+  const redFlags = normalizeFlags(input.journalRedFlags);
 
-  if (criticalMissed || fever || abdominalPain === 'moderate' || weightChange >= 5) {
-    return 'urgent';
-  }
+  const hasRedFlag = (...candidates: string[]) =>
+    candidates.some((flag) => redFlags.has(flag.toLowerCase()));
 
-  if (missedMeds || abdominalPain === 'mild') {
-    return 'routine';
-  }
+  const severeAbdominalPain =
+    answers.abdominalPain === 'severe' ||
+    hasRedFlag('severe abdominal pain', 'severe belly pain');
+  const abdominalPain =
+    severeAbdominalPain ||
+    (typeof answers.abdominalPain === 'string' && answers.abdominalPain !== 'none');
+  const vomitingBlood =
+    answers.vomitingBlood === true || hasRedFlag('vomited blood', 'throwing up blood');
+  const blackTarryStools = hasRedFlag('black stool', 'bloody stool');
+  const fever = answers.fever === true || hasRedFlag('high fever');
+  const missedCritical =
+    medAdherence?.some((med) => med.isCritical && med.status === 'missed') ?? false;
+  const missedLactulose = answers.missedMeds === true || missedCritical;
 
-  return 'self-monitor';
+  const confusionLevel = answers.severeConfusion
+    ? 'severe'
+    : hasRedFlag('confusion')
+      ? 'mild'
+      : 'none';
+
+  const weightChange =
+    typeof answers.weightChange === 'number' && answers.weightChange > 0
+      ? poundsToKg(answers.weightChange)
+      : undefined;
+
+  return {
+    timestamp: new Date().toISOString(),
+    symptoms: {
+      vomitingBlood,
+      blackTarryStools,
+      severeAbdominalPain,
+      abdominalPain,
+      confusionLevel,
+      shortnessOfBreath: false,
+      jaundiceWorsening: false,
+      edemaWorsening: false,
+      ascitesWorsening: false,
+      fever,
+      missedLactulose,
+    },
+    vitals: undefined,
+    weightGainKgLast24h: weightChange,
+  };
+};
+
+export const runTriage = (input: TriageInput): TriageDecision => {
+  const checkIn = buildCheckIn(input);
+  const result = evaluateTriage(checkIn);
+
+  return {
+    level: result.level,
+    rationale: result.reasons,
+    recommendedAction: result.recommendedAction,
+  };
 };

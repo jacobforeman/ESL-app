@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
-import { appendCheckInHistory } from '../state/checkInHistory';
+import { ScrollView, StyleSheet, Text } from 'react-native';
+import { CheckInWizard } from '../components/CheckInWizard/CheckInWizard';
 import { readStore } from '../storage';
-import { profileStore } from '../storage/stores';
+import { profileStore, triageHistoryStore } from '../storage/stores';
 import type { CaregiverMode } from '../storage/types';
-import { CheckInAnswers, TriageLevel } from '../types/checkIn';
 import type { TriageHistoryEntry } from '../storage/types';
+import type { TriageLevel } from '../types/checkIn';
 import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
 
 type CheckInScreenProps = {
@@ -13,8 +13,8 @@ type CheckInScreenProps = {
 };
 
 const CheckInScreen = ({ onResultSaved }: CheckInScreenProps) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -27,47 +27,35 @@ const CheckInScreen = ({ onResultSaved }: CheckInScreenProps) => {
     });
   }, []);
 
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-
-    const answers: CheckInAnswers = {
-      vomitingBlood: false,
-      severeConfusion: false,
-      fever: false,
-      abdominalPain: 'mild',
-      missedMeds: true,
-      weightChange: 0,
-      notes: 'Increased fatigue compared to yesterday.',
-    };
-
-    const triageResult: TriageLevel = 'routine';
-    const entry = await appendCheckInHistory(answers, triageResult);
-    onResultSaved({
-      ...entry.triage,
-      rationale: ['Sample triage note saved from demo check-in.'],
-    });
-
-    setIsSubmitting(false);
+  const handleComplete = async (_result: TriageLevel, entryId: string) => {
+    try {
+      const { data } = await readStore(triageHistoryStore);
+      const entry = data.find((item) => item.checkInId === entryId) ?? data[0];
+      if (entry) {
+        onResultSaved(entry);
+      } else {
+        setErrorMessage('Unable to locate the saved triage decision.');
+      }
+    } catch (error) {
+      console.warn('Unable to load triage history.', error);
+      setErrorMessage('Unable to load triage history.');
+    }
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Daily Check-In</Text>
       <Text style={styles.description}>
         Submit {getCaregiverPossessive(caregiverMode)} symptoms to receive a triage recommendation.
       </Text>
-      <Button
-        title={isSubmitting ? 'Submitting...' : 'Submit Check-In'}
-        onPress={handleSubmit}
-        disabled={isSubmitting}
-      />
-    </View>
+      {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
+      <CheckInWizard onComplete={handleComplete} />
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     padding: 24,
     backgroundColor: '#FFFFFF',
   },
@@ -80,6 +68,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 16,
     color: '#4B5563',
+  },
+  error: {
+    color: '#b91c1c',
+    marginBottom: 12,
   },
 });
 
