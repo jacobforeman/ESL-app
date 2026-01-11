@@ -1,84 +1,108 @@
 import {
   ExportSummaryPayload,
   ExportSummaryResult,
-  ExportSummaryTriageResult,
-  MedAdherenceSnapshot,
+  JournalHighlight,
+  MedicationAdherenceSummary,
+  SymptomTrend,
+  VitalsTrend,
 } from '../types/exportSummary';
 
-const formatList = (items: string[], emptyLabel: string): string =>
-  items.length ? items.join(', ') : emptyLabel;
+const sortByDateDesc = <T extends { createdAt: string }>(items: T[]): T[] =>
+  [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
-const formatVitals = (vitals: Record<string, number | string>): string => {
-  const entries = Object.entries(vitals).map(([key, value]) => `${key}: ${value}`);
-  return formatList(entries, 'No vitals recorded');
+const buildSymptomTrends = (checkIns: ExportSummaryPayload['checkIns']): SymptomTrend[] => {
+  const counts = new Map<string, number>();
+  checkIns.forEach((checkIn) => {
+    checkIn.symptoms.forEach((symptom) => {
+      counts.set(symptom, (counts.get(symptom) ?? 0) + 1);
+    });
+  });
+  return Array.from(counts.entries()).map(([symptom, count]) => ({ symptom, count }));
 };
 
-const formatAdherence = (snapshot: MedAdherenceSnapshot): string => {
-  const total = snapshot.takenCount + snapshot.missedCount;
-  if (!snapshot.entries.length || total === 0) {
-    return `No adherence entries recorded for ${snapshot.date}.`;
-  }
-  const percentage = Math.round((snapshot.takenCount / total) * 100);
-  return `${snapshot.takenCount}/${total} doses taken (${percentage}% adherence, ${snapshot.missedCount} missed) on ${snapshot.date}.`;
+const buildVitalsTrends = (checkIns: ExportSummaryPayload['checkIns']): VitalsTrend[] => {
+  const metrics: Record<string, number[]> = {};
+
+  checkIns.forEach((checkIn) => {
+    Object.entries(checkIn.vitals ?? {}).forEach(([key, value]) => {
+      if (typeof value === 'number') {
+        metrics[key] = metrics[key] ? [...metrics[key], value] : [value];
+      }
+    });
+  });
+
+  return Object.entries(metrics).map(([metric, values]) => {
+    const total = values.reduce((sum, value) => sum + value, 0);
+    const average = values.length ? Number((total / values.length).toFixed(1)) : undefined;
+    const min = values.length ? Math.min(...values) : undefined;
+    const max = values.length ? Math.max(...values) : undefined;
+    return { metric, average, min, max };
+  });
 };
 
-const triageRecommendation = (triage: ExportSummaryTriageResult): string => {
-  switch (triage.level) {
-    case 'emergency':
-      return 'Seek emergency care or call emergency services immediately.';
-    case 'urgent':
-      return 'Contact the care team as soon as possible for further guidance.';
-    case 'routine':
-      return 'Follow up with the care team during regular hours.';
-    case 'self-monitor':
-      return 'Continue monitoring symptoms and follow the current care plan.';
-    default:
-      return 'Follow the care team recommendations.';
-  }
+const buildMedicationAdherence = (
+  entries: ExportSummaryPayload['medAdherence'],
+  days = 7,
+): MedicationAdherenceSummary => {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - (days - 1));
+  const startKey = start.toISOString().slice(0, 10);
+  const endKey = end.toISOString().slice(0, 10);
+
+  const recent = entries.filter((entry) => entry.date >= startKey && entry.date <= endKey);
+  const taken = recent.filter((entry) => entry.taken).length;
+  const missed = recent.filter((entry) => !entry.taken).length;
+  const total = taken + missed;
+  const percentage = total === 0 ? 0 : Math.round((taken / total) * 100);
+
+  return { startDate: startKey, endDate: endKey, taken, missed, percentage };
 };
 
-const formatJournalNotes = (entries: ExportSummaryPayload['journalEntries']): string => {
-  if (entries.length === 0) {
-    return 'No journal notes recorded.';
-  }
+const buildJournalHighlights = (
+  entries: ExportSummaryPayload['journalEntries'],
+): JournalHighlight[] => {
+  const sorted = sortByDateDesc(entries);
+  const latest = sorted.slice(0, 3);
+  const redFlags = sorted.filter((entry) => entry.redFlags?.length).slice(0, 3);
+  const combined = [...latest, ...redFlags];
+  const unique = new Map<string, JournalHighlight>();
 
-  return entries
-    .map((entry) => {
-      const date = new Date(entry.createdAt).toLocaleDateString();
-      const authorLabel = entry.author === 'caregiver' ? 'Caregiver' : 'Patient';
-      const redFlagLabel = entry.redFlags?.length ? ` (red flags: ${entry.redFlags.join(', ')})` : '';
-      return `${date} · ${authorLabel}: ${entry.text}${redFlagLabel}`;
-    })
-    .join('\n');
+  combined.forEach((entry) => {
+    unique.set(entry.id, {
+      id: entry.id,
+      createdAt: entry.createdAt,
+      author: entry.author,
+      text: entry.text,
+      redFlags: entry.redFlags,
+      tags: entry.tags,
+      caregiverNotes: entry.caregiverNotes,
+    });
+  });
+
+  return Array.from(unique.values());
 };
 
-export const buildExportSummary = (input: ExportSummaryPayload): ExportSummaryResult => {
-  const { profile, lastCheckIn, triageResult, medsAdherenceSnapshot, journalEntries } = input;
-  const caregiverLabel =
-    profile.caregiverMode === 'caregiver' ? 'Caregiver-reported' : 'Patient-reported';
+export const buildExportSummary = (payload: ExportSummaryPayload, triageLimit = 7): ExportSummaryResult => {
+  const generatedAt = new Date().toISOString();
+  const triageResults = sortByDateDesc(payload.triageHistory).slice(0, triageLimit);
+  const symptomTrends = buildSymptomTrends(payload.checkIns);
+  const vitalsTrends = buildVitalsTrends(payload.checkIns);
+  const medicationAdherence = buildMedicationAdherence(payload.medAdherence, 7);
+  const journalHighlights = buildJournalHighlights(payload.journalEntries);
 
-  const symptoms = formatList(lastCheckIn.symptoms, 'No symptoms reported');
-  const missedMeds = formatList(lastCheckIn.missedMeds, 'No missed medications');
-  const vitals = formatVitals(lastCheckIn.vitals);
-  const triageRationale = formatList(triageResult.rationale, 'No triage rationale recorded');
-  const adherenceSummary = formatAdherence(medsAdherenceSnapshot);
-  const journalSummary = formatJournalNotes(journalEntries);
-
-  const situation = `Situation: ${profile.name} completed a check-in on ${lastCheckIn.createdAt}. Latest triage level: ${triageResult.level}.`;
-  const background = `Background: ${caregiverLabel} update. Symptoms: ${symptoms}. Vitals: ${vitals}. Missed meds: ${missedMeds}.`;
-  const assessment = `Assessment: ${triageRationale} Medication adherence: ${adherenceSummary}`;
-  const journal = `Journal notes: ${journalSummary}`;
-  const recommendation = `Recommendation: ${triageRecommendation(triageResult)}`;
-
-  const sbar = [situation, background, assessment, journal, recommendation].join('\n');
+  const summary = {
+    generatedAt,
+    profile: payload.profile,
+    triageResults,
+    symptomTrends,
+    vitalsTrends,
+    medicationAdherence,
+    journalHighlights,
+  };
 
   return {
-    summary: {
-      profile,
-      lastCheckIn,
-      triageResult,
-      medsAdherenceSnapshot,
-    },
-    sbar,
+    ...summary,
+    structuredJson: JSON.stringify(summary, null, 2),
   };
 };

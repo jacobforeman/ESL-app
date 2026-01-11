@@ -116,6 +116,19 @@ esld-companion-app/
 - The AI companion follows strict safety prompts and never overrides triage outcomes.
 - Sensitive data remains on-device in v0; users explicitly control sharing.
 
+## Run in Expo Go (v0)
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the Expo dev server:
+   ```bash
+   npx expo start
+   ```
+3. Open the Expo Go app on your device and scan the QR code.
+
+AI keys are optional for v0. If `EXPO_PUBLIC_AI_API_KEY` is not set, the app uses mock AI responses.
+
 ## Future Expansion
 - Backend for data sync and multi-device caregiver access.
 - Disease-agnostic content configuration for other chronic conditions.

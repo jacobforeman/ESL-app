@@ -12,7 +12,7 @@ import { QuestionDefinition } from '../../types/checkIn';
 type QuestionRendererProps = {
   question: QuestionDefinition;
   value: boolean | string | number | undefined;
-  onChange: (value: boolean | string | number) => void;
+  onChange: (value: boolean | string | number | undefined) => void;
 };
 
 export const QuestionRenderer = ({
@@ -72,7 +72,7 @@ export const QuestionRenderer = ({
             if (!Number.isNaN(parsed)) {
               onChange(parsed);
             } else if (text.trim() === '') {
-              onChange(0);
+              onChange(undefined);
             }
           }}
         />

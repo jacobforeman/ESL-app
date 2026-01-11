@@ -24,7 +24,7 @@ export type QuestionFlowConfig = {
   questions: QuestionDefinition[];
 };
 
-export type CheckInAnswers = Record<string, boolean | string | number>;
+export type CheckInAnswers = Record<string, boolean | string | number | undefined>;
 
 export type TriageLevel = 'emergency' | 'urgent' | 'routine' | 'self-monitor';
 
@@ -38,6 +38,7 @@ export type TriageDecision = {
   level: TriageLevel;
   rationale: string[];
   recommendedAction: string;
+  ruleIds?: string[];
 };
 
 export type CheckInHistoryEntry = {

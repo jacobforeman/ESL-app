@@ -14,7 +14,7 @@ const buildQuestionSchema = (question: QuestionDefinition) => {
           'Select a valid option.'
         );
     case 'number': {
-      let schema = z.number();
+      let schema = z.number().optional();
       if (typeof question.min === 'number') {
         schema = schema.min(question.min, `Must be at least ${question.min}.`);
       }

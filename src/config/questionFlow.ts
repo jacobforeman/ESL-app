@@ -5,6 +5,13 @@ export const questionFlowConfig: QuestionFlowConfig = {
   title: 'Daily Check-In',
   questions: [
     {
+      id: 'checkInTimestamp',
+      title: 'When are you completing this check-in?',
+      description: 'Use local time (optional if completing now).',
+      type: 'text',
+      placeholder: 'e.g., 2024-04-22 08:30',
+    },
+    {
       id: 'vomitingBlood',
       title: 'Have you vomited blood or had black/tarry stools?'
         + ' (This can indicate bleeding.)',
@@ -13,6 +20,12 @@ export const questionFlowConfig: QuestionFlowConfig = {
     {
       id: 'severeConfusion',
       title: 'Are you experiencing severe confusion or not acting like yourself?',
+      type: 'boolean',
+    },
+    {
+      id: 'shortnessOfBreath',
+      title: 'Are you feeling short of breath today?'
+        + ' (If severe or worsening, seek immediate care.)',
       type: 'boolean',
     },
     {
@@ -32,9 +45,75 @@ export const questionFlowConfig: QuestionFlowConfig = {
       ],
     },
     {
+      id: 'jaundiceWorsening',
+      title: 'Is yellowing of the skin or eyes worsening?',
+      type: 'boolean',
+    },
+    {
+      id: 'ascitesWorsening',
+      title: 'Is abdominal swelling or ascites worsening?',
+      type: 'boolean',
+    },
+    {
+      id: 'edemaWorsening',
+      title: 'Are your legs or feet more swollen than usual?',
+      type: 'boolean',
+    },
+    {
       id: 'missedMeds',
       title: 'Have you missed any liver-related medications in the last 24 hours?',
       type: 'boolean',
+    },
+    {
+      id: 'missedMedsDetail',
+      title: 'If you missed meds, which ones?',
+      type: 'text',
+      placeholder: 'Optional details',
+    },
+    {
+      id: 'temperatureC',
+      title: 'Temperature (°C)',
+      description: 'Optional. Leave blank if unknown.',
+      type: 'number',
+      min: 30,
+      max: 43,
+      placeholder: '36.8',
+    },
+    {
+      id: 'heartRate',
+      title: 'Heart rate (beats per minute)',
+      description: 'Optional. Leave blank if unknown.',
+      type: 'number',
+      min: 30,
+      max: 220,
+      placeholder: '80',
+    },
+    {
+      id: 'systolicBP',
+      title: 'Blood pressure - systolic (top number)',
+      description: 'Optional. Leave blank if unknown.',
+      type: 'number',
+      min: 60,
+      max: 220,
+      placeholder: '110',
+    },
+    {
+      id: 'diastolicBP',
+      title: 'Blood pressure - diastolic (bottom number)',
+      description: 'Optional. Leave blank if unknown.',
+      type: 'number',
+      min: 30,
+      max: 140,
+      placeholder: '70',
+    },
+    {
+      id: 'oxygenSat',
+      title: 'Oxygen saturation (%)',
+      description: 'Optional. Leave blank if unknown.',
+      type: 'number',
+      min: 50,
+      max: 100,
+      placeholder: '98',
     },
     {
       id: 'weightChange',
@@ -50,6 +129,13 @@ export const questionFlowConfig: QuestionFlowConfig = {
       title: 'Anything else you want to share?',
       type: 'text',
       placeholder: 'Optional notes...',
+    },
+    {
+      id: 'caregiverNotes',
+      title: 'Caregiver notes (optional)',
+      description: 'Use this field if you are a caregiver adding observations.',
+      type: 'text',
+      placeholder: 'Optional caregiver notes...',
     },
   ],
 };

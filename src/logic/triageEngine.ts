@@ -22,11 +22,16 @@ const buildCheckIn = (input: TriageInput): CheckIn => {
     (typeof answers.abdominalPain === 'string' && answers.abdominalPain !== 'none');
   const vomitingBlood =
     answers.vomitingBlood === true || hasRedFlag('vomited blood', 'throwing up blood');
-  const blackTarryStools = hasRedFlag('black stool', 'bloody stool');
+  const blackTarryStools = hasRedFlag('black stool', 'bloody stool', 'black tarry stools');
   const fever = answers.fever === true || hasRedFlag('high fever');
   const missedCritical =
     medAdherence?.some((med) => med.isCritical && med.status === 'missed') ?? false;
   const missedLactulose = answers.missedMeds === true || missedCritical;
+
+  const shortnessOfBreath = answers.shortnessOfBreath === true || hasRedFlag('shortness of breath');
+  const jaundiceWorsening = answers.jaundiceWorsening === true;
+  const edemaWorsening = answers.edemaWorsening === true;
+  const ascitesWorsening = answers.ascitesWorsening === true;
 
   const confusionLevel = answers.severeConfusion
     ? 'severe'
@@ -39,6 +44,16 @@ const buildCheckIn = (input: TriageInput): CheckIn => {
       ? poundsToKg(answers.weightChange)
       : undefined;
 
+  const vitals = {
+    temperatureC: typeof answers.temperatureC === 'number' ? answers.temperatureC : undefined,
+    heartRate: typeof answers.heartRate === 'number' ? answers.heartRate : undefined,
+    systolicBP: typeof answers.systolicBP === 'number' ? answers.systolicBP : undefined,
+    diastolicBP: typeof answers.diastolicBP === 'number' ? answers.diastolicBP : undefined,
+    oxygenSat: typeof answers.oxygenSat === 'number' ? answers.oxygenSat : undefined,
+  };
+
+  const hasVitals = Object.values(vitals).some((value) => typeof value === 'number');
+
   return {
     timestamp: new Date().toISOString(),
     symptoms: {
@@ -47,14 +62,14 @@ const buildCheckIn = (input: TriageInput): CheckIn => {
       severeAbdominalPain,
       abdominalPain,
       confusionLevel,
-      shortnessOfBreath: false,
-      jaundiceWorsening: false,
-      edemaWorsening: false,
-      ascitesWorsening: false,
+      shortnessOfBreath,
+      jaundiceWorsening,
+      edemaWorsening,
+      ascitesWorsening,
       fever,
       missedLactulose,
     },
-    vitals: undefined,
+    vitals: hasVitals ? vitals : undefined,
     weightGainKgLast24h: weightChange,
   };
 };
@@ -75,26 +90,39 @@ export const runTriage = (input: TriageInput): TriageDecision => {
   const checkIn = buildCheckIn(input);
   const result = evaluateTriage(checkIn);
   const reasons = result.reasons.length ? result.reasons : ['No concerning ESLD symptoms reported today.'];
+  const ruleIds = result.ruleIds ?? [];
 
   if (result.level === 'emergency') {
     return {
       level: 'emergency',
       rationale: reasons,
+      ruleIds,
       recommendedAction: result.recommendedAction || 'Call emergency services or go to the nearest ER now.',
     };
   }
 
-  if (result.level === 'urgent' || result.level === 'routine') {
+  if (result.level === 'urgent') {
     return {
       level: 'urgent',
       rationale: reasons,
-      recommendedAction: 'Contact your transplant or liver clinic within 24 hours.',
+      ruleIds,
+      recommendedAction: result.recommendedAction || 'Contact your transplant or liver clinic within 24 hours.',
+    };
+  }
+
+  if (result.level === 'routine') {
+    return {
+      level: 'routine',
+      rationale: reasons,
+      ruleIds,
+      recommendedAction: result.recommendedAction || 'Discuss these findings at your next appointment.',
     };
   }
 
   return {
     level: 'self-monitor',
     rationale: reasons,
+    ruleIds,
     recommendedAction: 'Continue monitoring and complete your next check-in as scheduled.',
   };
 };

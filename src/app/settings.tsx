@@ -6,6 +6,7 @@ import { readStore, updateStore } from '../storage';
 import { profileStore } from '../storage/stores';
 import { CaregiverMode } from '../storage/types';
 import { colors } from '../theme/colors';
+import { logAuditEvent } from '../logic/auditLog';
 
 const SettingsScreen = () => {
   const [name, setName] = useState('');
@@ -29,12 +30,23 @@ const SettingsScreen = () => {
     setSaving(true);
     setStatusMessage(null);
     try {
-      await updateStore(profileStore, (current) => ({
-        ...current,
-        name: name.trim(),
-        caregiverMode: mode,
-        updatedAt: new Date().toISOString(),
-      }));
+      let previousMode: CaregiverMode = mode;
+      await updateStore(profileStore, (current) => {
+        previousMode = current.caregiverMode;
+        return {
+          ...current,
+          name: name.trim(),
+          caregiverMode: mode,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      if (previousMode !== mode) {
+        await logAuditEvent({
+          userRole: mode,
+          actionType: 'caregiver_mode_toggled',
+          entity: 'profile',
+        });
+      }
       setStatusMessage('Settings saved.');
     } catch (error) {
       console.warn('Unable to save profile settings.', error);

@@ -13,6 +13,9 @@ import type { CaregiverMode } from '../../storage/types';
 import { CheckInAnswers, QuestionDefinition, TriageLevel } from '../../types/checkIn';
 import { MedAdherenceSnapshotItem, MedAdherenceStatus } from '../../types/meds';
 import { getCaregiverPossessive } from '../../utils/caregiverPhrasing';
+import { scanTextForRedFlags } from '../../logic/redFlags';
+import { triggerEmergencyAlert } from '../../logic/alertsService';
+import { logAuditEvent } from '../../logic/auditLog';
 import { QuestionRenderer } from './QuestionRenderer';
 
 type CheckInWizardProps = {
@@ -33,6 +36,27 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
   const totalSteps = questions.length + 1;
   const isAdherenceStep = currentIndex === 0;
   const currentQuestion = currentIndex > 0 ? questions[currentIndex - 1] : null;
+  const effectiveStepIndex = () => {
+    if (currentIndex === 0) {
+      return 1;
+    }
+
+    if (caregiverMode === 'caregiver') {
+      return currentIndex + 1;
+    }
+
+    const caregiverIndex = questions.findIndex((question) => question.id === 'caregiverNotes');
+    if (caregiverIndex === -1) {
+      return currentIndex + 1;
+    }
+
+    const adjusted = currentIndex > caregiverIndex ? currentIndex : currentIndex + 1;
+    return adjusted;
+  };
+
+  const effectiveTotalSteps = caregiverMode === 'caregiver' ? totalSteps : totalSteps - 1;
+  const shouldShowQuestion =
+    currentQuestion?.id === 'caregiverNotes' ? caregiverMode === 'caregiver' : true;
 
   useEffect(() => {
     let isMounted = true;
@@ -71,7 +95,10 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
     };
   }, []);
 
-  const updateAnswer = (question: QuestionDefinition, value: boolean | string | number) => {
+  const updateAnswer = (
+    question: QuestionDefinition,
+    value: boolean | string | number | undefined,
+  ) => {
     setAnswers((prev) => ({
       ...prev,
       [question.id]: value,
@@ -87,14 +114,30 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
   const goNext = () => {
     setErrorMessage(null);
     if (currentIndex < totalSteps - 1) {
-      setCurrentIndex((prev) => prev + 1);
+      let nextIndex = currentIndex + 1;
+      while (
+        nextIndex < totalSteps - 1 &&
+        questions[nextIndex - 1]?.id === 'caregiverNotes' &&
+        caregiverMode !== 'caregiver'
+      ) {
+        nextIndex += 1;
+      }
+      setCurrentIndex(nextIndex);
     }
   };
 
   const goBack = () => {
     setErrorMessage(null);
     if (currentIndex > 0) {
-      setCurrentIndex((prev) => prev - 1);
+      let nextIndex = currentIndex - 1;
+      while (
+        nextIndex > 0 &&
+        questions[nextIndex - 1]?.id === 'caregiverNotes' &&
+        caregiverMode !== 'caregiver'
+      ) {
+        nextIndex -= 1;
+      }
+      setCurrentIndex(nextIndex);
     }
   };
 
@@ -102,11 +145,28 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
     setErrorMessage(null);
     try {
       const validated = schema.parse(answers) as z.infer<typeof schema>;
+      const redFlags = scanTextForRedFlags(
+        [validated.notes, validated.caregiverNotes].filter(Boolean).join(' '),
+      );
+      if (redFlags.length > 0) {
+        triggerEmergencyAlert({
+          message: 'Critical symptoms detected in check-in notes.',
+          details: redFlags,
+          source: 'check-in',
+        });
+      }
       const triageDecision = runTriage({
         answers: validated,
         medAdherence: adherenceSnapshot,
         journalRedFlags,
       });
+      if (triageDecision.level === 'emergency') {
+        triggerEmergencyAlert({
+          message: 'Emergency triage result detected.',
+          details: triageDecision.rationale,
+          source: 'check-in',
+        });
+      }
       const dateKey = new Date().toISOString().slice(0, 10);
       for (const med of adherenceSnapshot) {
         if (med.status === 'unknown') {
@@ -122,6 +182,12 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
       const entry = await appendCheckInHistory(validated, triageDecision, {
         journalRedFlags,
         medAdherence: adherenceSnapshot,
+      });
+      await logAuditEvent({
+        userRole: caregiverMode,
+        actionType: 'checkin_submitted',
+        entity: 'check-in',
+        entityId: entry.checkIn.id,
       });
       onComplete(triageDecision.level, entry.checkIn.id);
     } catch (error) {
@@ -144,7 +210,7 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
         Complete today&apos;s check-in for {getCaregiverPossessive(caregiverMode)} symptoms.
       </Text>
       <Text style={styles.progress}>
-        Step {currentIndex + 1} of {totalSteps}
+        Step {effectiveStepIndex()} of {effectiveTotalSteps}
       </Text>
 
       {isAdherenceStep ? (
@@ -197,7 +263,7 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
           )}
           {adherenceError ? <Text style={styles.error}>{adherenceError}</Text> : null}
         </View>
-      ) : currentQuestion ? (
+      ) : currentQuestion && shouldShowQuestion ? (
         <QuestionRenderer
           question={currentQuestion}
           value={answers[currentQuestion.id]}

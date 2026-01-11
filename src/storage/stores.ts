@@ -5,6 +5,8 @@ import {
   MedConfig,
   ModuleSelection,
   Profile,
+  AuditEvent,
+  JournalSummaryEntry,
   TriageHistoryEntry,
 } from './types';
 import { StorageStore } from './storageEngine';
@@ -35,16 +37,28 @@ export const moduleSelectionStore: StorageStore<ModuleSelection> = {
 
 export const checkInStore: StorageStore<CheckIn[]> = {
   key: 'esl.checkIns',
-  version: 1,
+  version: 2,
   defaultData: [],
-  migrations: [],
+  migrations: [
+    (data) =>
+      data.map((entry) => ({
+        ...entry,
+        schemaVersion: entry.schemaVersion ?? 1,
+      })),
+  ],
 };
 
 export const triageHistoryStore: StorageStore<TriageHistoryEntry[]> = {
   key: 'esl.triageHistory',
-  version: 1,
+  version: 2,
   defaultData: [],
-  migrations: [],
+  migrations: [
+    (data) =>
+      data.map((entry) => ({
+        ...entry,
+        schemaVersion: entry.schemaVersion ?? 1,
+      })),
+  ],
 };
 
 export const medConfigStore: StorageStore<MedConfig> = {
@@ -66,6 +80,26 @@ export const medAdherenceStore: StorageStore<MedAdherenceEntry[]> = {
 
 export const journalStore: StorageStore<JournalEntry[]> = {
   key: 'esl.journalEntries',
+  version: 2,
+  defaultData: [],
+  migrations: [
+    (data) =>
+      data.map((entry) => ({
+        ...entry,
+        tags: entry.tags ?? [],
+      })),
+  ],
+};
+
+export const journalSummaryStore: StorageStore<JournalSummaryEntry[]> = {
+  key: 'esl.journalSummaries',
+  version: 1,
+  defaultData: [],
+  migrations: [],
+};
+
+export const auditLogStore: StorageStore<AuditEvent[]> = {
+  key: 'esl.auditLog',
   version: 1,
   defaultData: [],
   migrations: [],

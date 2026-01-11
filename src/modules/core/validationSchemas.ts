@@ -41,6 +41,7 @@ export const CheckInSchema = z.object({
 export const TriageResultSchema = z.object({
   level: z.enum(["emergency", "urgent", "routine", "self-monitor"]),
   reasons: z.array(z.string()),
+  ruleIds: z.array(z.string()).optional(),
   recommendedAction: z.string(),
 });
 

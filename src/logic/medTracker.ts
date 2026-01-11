@@ -42,6 +42,38 @@ export const summarizeAdherence = async (
   return { ...summary, percentage };
 };
 
+export const summarizeWeeklyAdherence = async (
+  endDate = new Date(),
+): Promise<{ taken: number; missed: number; percentage: number; startDate: string; endDate: string }> => {
+  const { data } = await readStore(medAdherenceStore);
+  const end = new Date(endDate);
+  const start = new Date(endDate);
+  start.setDate(end.getDate() - 6);
+  const startKey = todayKey(start);
+  const endKey = todayKey(end);
+
+  const entries = data.filter((entry) => entry.date >= startKey && entry.date <= endKey);
+  const summary = entries.reduce(
+    (acc, entry) => {
+      if (entry.taken) {
+        acc.taken += 1;
+      } else {
+        acc.missed += 1;
+      }
+      return acc;
+    },
+    { taken: 0, missed: 0 },
+  );
+  const total = summary.taken + summary.missed;
+  const percentage = total === 0 ? 0 : Math.round((summary.taken / total) * 100);
+  return { ...summary, percentage, startDate: startKey, endDate: endKey };
+};
+
+export const scheduleMedicationReminders = async (): Promise<void> => {
+  // TODO: Hook into Expo Notifications to schedule reminders for configured meds.
+  return Promise.resolve();
+};
+
 const isCriticalMed = (med: MedConfigItem): boolean =>
   Boolean(med.critical) || med.name.toLowerCase().includes('lactulose');
 
