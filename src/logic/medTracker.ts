@@ -22,9 +22,11 @@ export const getTodayAdherence = async (date = new Date()): Promise<MedAdherence
   return data.filter((entry) => entry.date === key);
 };
 
-export const summarizeAdherence = async (date = new Date()): Promise<{ taken: number; missed: number }> => {
+export const summarizeAdherence = async (
+  date = new Date(),
+): Promise<{ taken: number; missed: number; percentage: number }> => {
   const entries = await getTodayAdherence(date);
-  return entries.reduce(
+  const summary = entries.reduce(
     (acc, entry) => {
       if (entry.taken) {
         acc.taken += 1;
@@ -35,6 +37,9 @@ export const summarizeAdherence = async (date = new Date()): Promise<{ taken: nu
     },
     { taken: 0, missed: 0 },
   );
+  const total = summary.taken + summary.missed;
+  const percentage = total === 0 ? 0 : Math.round((summary.taken / total) * 100);
+  return { ...summary, percentage };
 };
 
 const isCriticalMed = (med: MedConfigItem): boolean =>

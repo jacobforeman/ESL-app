@@ -23,7 +23,7 @@ const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const MedsScreen = () => {
   const [meds, setMeds] = useState<MedConfigItem[]>([]);
   const [snapshot, setSnapshot] = useState<MedAdherenceSnapshotItem[]>([]);
-  const [summary, setSummary] = useState({ taken: 0, missed: 0 });
+  const [summary, setSummary] = useState({ taken: 0, missed: 0, percentage: 0 });
   const [name, setName] = useState('');
   const [dose, setDose] = useState('');
   const [schedule, setSchedule] = useState('');
@@ -119,7 +119,7 @@ const MedsScreen = () => {
           Today&apos;s adherence for {getCaregiverPossessive(caregiverMode)} medications
         </Text>
         <Text style={styles.sectionSubtitle}>
-          {summary.taken} taken · {summary.missed} missed
+          {summary.taken} taken · {summary.missed} missed · {summary.percentage}% adherence
         </Text>
         {snapshot.length === 0 ? (
           <Text style={styles.emptyText}>No medications configured yet.</Text>

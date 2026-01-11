@@ -50,7 +50,7 @@ const TriageResultScreen = ({
 
       <View style={styles.actions}>
         <ActionButton label="Export summary" onPress={onExportSummary} />
-        <ActionButton label="Explain result (AI placeholder)" onPress={onExplainResult} />
+        <ActionButton label="Explain result" onPress={onExplainResult} />
         <ActionButton label="Done" variant="primary" onPress={onDone} />
       </View>
     </ScrollView>

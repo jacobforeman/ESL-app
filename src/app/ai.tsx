@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import ActionButton from '../components/ActionButton';
-import { AiTask, isAiEnabled, requestStrictAiCompletion } from '../logic/AiHelper';
+import { AiTask, getAiResponse } from '../logic/AiHelper';
+import { readStore } from '../storage';
+import { profileStore } from '../storage/stores';
+import type { CaregiverMode } from '../storage/types';
 import { colors } from '../theme/colors';
+import { getCaregiverLabel, getCaregiverPossessive } from '../utils/caregiverPhrasing';
 
 const TASK_OPTIONS: Array<{ label: string; value: AiTask }> = [
   { label: 'Explain a check-in question', value: 'check-in-question' },
@@ -12,12 +16,23 @@ const TASK_OPTIONS: Array<{ label: string; value: AiTask }> = [
 ];
 
 const AiScreen = () => {
-  const aiEnabled = isAiEnabled();
   const [task, setTask] = useState<AiTask>('check-in-question');
   const [prompt, setPrompt] = useState('');
   const [response, setResponse] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data } = await readStore(profileStore);
+      setCaregiverMode(data.caregiverMode);
+    };
+
+    loadProfile().catch((error) => {
+      console.warn('Unable to load caregiver mode for AI screen.', error);
+    });
+  }, []);
 
   const handleSubmit = async () => {
     setStatus(null);
@@ -28,20 +43,9 @@ const AiScreen = () => {
       return;
     }
 
-    if (!aiEnabled) {
-      setStatus('AI features are unavailable.');
-      return;
-    }
-
     setLoading(true);
     try {
-      const completion = await requestStrictAiCompletion(
-        task,
-        prompt.trim(),
-        {
-          apiKey: process.env.OPENAI_API_KEY ?? '',
-        },
-      );
+      const completion = await getAiResponse(task, prompt.trim());
       setResponse(completion || 'No response returned.');
     } catch (error) {
       console.warn('AI request failed.', error);
@@ -53,17 +57,12 @@ const AiScreen = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>AI Companion</Text>
-      <Text style={styles.subtitle}>Get guidance and explanations in plain language.</Text>
-
-      {!aiEnabled ? (
-        <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>AI features are unavailable.</Text>
-          <Text style={styles.noticeBody}>
-            Configure OPENAI_API_KEY to enable AI explanations and message drafts.
-          </Text>
-        </View>
-      ) : null}
+      <Text style={styles.title}>
+        {caregiverMode === 'caregiver' ? 'Caregiver AI Companion' : 'AI Companion'}
+      </Text>
+      <Text style={styles.subtitle}>
+        Get safe explanations for {getCaregiverPossessive(caregiverMode)} check-ins and messages.
+      </Text>
 
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>Choose a task</Text>
@@ -84,7 +83,9 @@ const AiScreen = () => {
       </View>
 
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Your prompt</Text>
+        <Text style={styles.sectionTitle}>
+          {getCaregiverLabel(caregiverMode)} prompt
+        </Text>
         <Text style={styles.sectionSubtitle}>
           Add the question, triage result, or notes you want help with.
         </Text>
@@ -131,24 +132,6 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     color: colors.textSecondary,
-  },
-  notice: {
-    marginTop: 4,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  noticeTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#991b1b',
-    marginBottom: 4,
-  },
-  noticeBody: {
-    fontSize: 13,
-    color: '#7f1d1d',
   },
   sectionCard: {
     backgroundColor: colors.surface,

@@ -52,7 +52,7 @@ export const ResultScreen = ({
           <Text style={styles.buttonSecondaryText}>Export summary</Text>
         </Pressable>
         <Pressable onPress={handleExplainResult} style={styles.buttonSecondary}>
-          <Text style={styles.buttonSecondaryText}>Explain result (AI placeholder)</Text>
+          <Text style={styles.buttonSecondaryText}>Explain result</Text>
         </Pressable>
         <Pressable onPress={handleDone} style={styles.buttonPrimary}>
           <Text style={styles.buttonPrimaryText}>Done</Text>

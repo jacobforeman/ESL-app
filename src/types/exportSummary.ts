@@ -1,4 +1,10 @@
-import { CheckIn, MedAdherenceEntry, Profile, TriageHistoryEntry } from '../storage/types';
+import {
+  CheckIn,
+  JournalEntry,
+  MedAdherenceEntry,
+  Profile,
+  TriageHistoryEntry,
+} from '../storage/types';
 
 export type ExportSummaryProfile = Pick<Profile, 'id' | 'name' | 'caregiverMode'>;
 
@@ -12,6 +18,8 @@ export type ExportSummaryTriageResult = Pick<
   'id' | 'checkInId' | 'createdAt' | 'level' | 'rationale'
 >;
 
+export type ExportSummaryJournalEntry = Pick<JournalEntry, 'id' | 'createdAt' | 'author' | 'text' | 'redFlags'>;
+
 export interface MedAdherenceSnapshot {
   date: string;
   entries: MedAdherenceEntry[];
@@ -24,6 +32,7 @@ export interface ExportSummaryPayload {
   lastCheckIn: ExportSummaryCheckIn;
   triageResult: ExportSummaryTriageResult;
   medsAdherenceSnapshot: MedAdherenceSnapshot;
+  journalEntries: ExportSummaryJournalEntry[];
 }
 
 export interface ExportSummaryResult {

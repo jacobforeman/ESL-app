@@ -6,7 +6,7 @@ const ExplainResultPlaceholder = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Explain Result</Text>
       <Text style={styles.subtitle}>
-        An AI-friendly explanation of this check-in result will appear here soon.
+        This feature is active in basic mode. More advanced tracking can be added later.
       </Text>
     </View>
   );

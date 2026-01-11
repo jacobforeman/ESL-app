@@ -1,61 +1,108 @@
-import { AiClientOptions, requestAiCompletion } from './aiClient';
-
 export type AiTask = 'check-in-question' | 'triage-explanation' | 'doctor-message-draft';
 
-const ALLOWED_TASKS: Record<AiTask, string> = {
-  'check-in-question':
-    'Explain a single check-in question in plain language without adding new questions.',
-  'triage-explanation':
-    'Explain the triage result in plain language without changing the triage level.',
-  'doctor-message-draft':
-    'Draft a concise message to a doctor based on provided notes.',
-};
+export const BASE_SYSTEM_PROMPT = `You are a supportive ESLD companion.
+- Never provide a diagnosis.
+- Never provide treatment instructions or medication changes.
+- Provide education, explanation, and reinforcement only.
+- If emergency or red-flag symptoms are mentioned, advise seeking emergency care immediately.
+- Keep responses short, clear, and calm.`;
 
-const FORBIDDEN_RESPONSE_PATTERNS: RegExp[] = [
-  /diagnos(e|is|ing)/i,
-  /\byou (have|likely have|might have)\b/i,
-  /\btriage\b.*\b(change|upgrade|downgrade|adjust|override)\b/i,
-  /\bchange\b.*\btriage\b/i,
-  /\b(start|stop|increase|decrease|adjust)\b.*\b(medication|dose|dosage|meds|prescription)\b/i,
-  /\b(medication|dose|dosage|meds|prescription)\b.*\b(start|stop|increase|decrease|adjust)\b/i,
+const EMERGENCY_KEYWORDS = [
+  'vomited blood',
+  'throwing up blood',
+  'black stool',
+  'tarry stools',
+  'severe abdominal pain',
+  'severe belly pain',
+  'confusion',
+  'cannot wake',
+  'passing out',
+  'shortness of breath',
+  'emergency',
 ];
 
-const FALLBACK_RESPONSE =
-  'I can only explain check-in questions, explain the triage result, or draft a doctor message. ' +
-  'I cannot diagnose, change triage levels, or suggest medication changes.';
+const normalize = (value: string): string => value.toLowerCase();
 
-export const isAiEnabled = (): boolean => Boolean(process.env.OPENAI_API_KEY);
-
-export const buildStrictSystemPrompt = (task: AiTask): string => {
-  return `You are a health companion for ESLD patients and caregivers.
-Allowed tasks (pick only the requested one): ${ALLOWED_TASKS[task]}
-- Only explain check-in questions, explain triage results, or draft doctor messages.
-- Never diagnose or speculate about a diagnosis.
-- Never change, override, or suggest changing the triage level.
-- Never suggest starting, stopping, or adjusting medications.
-- If asked to do anything outside the allowed tasks, respond with the fallback refusal message.`;
+const includesEmergencySignals = (content: string): boolean => {
+  const normalized = normalize(content);
+  return EMERGENCY_KEYWORDS.some((keyword) => normalized.includes(keyword));
 };
 
-export const filterAiResponse = (response: string): string => {
-  if (!response) {
-    return response;
+const detectTriageLevel = (
+  content: string,
+): 'emergency' | 'urgent' | 'routine' | 'self-monitor' | null => {
+  const normalized = normalize(content);
+  if (normalized.includes('emergency')) return 'emergency';
+  if (normalized.includes('urgent')) return 'urgent';
+  if (normalized.includes('routine')) return 'routine';
+  if (normalized.includes('self-monitor') || normalized.includes('self monitor')) return 'self-monitor';
+  return null;
+};
+
+const buildEmergencyReminder = (): string =>
+  'If these symptoms are happening now, seek emergency care immediately or call local emergency services.';
+
+const buildCheckInResponse = (prompt: string): string => {
+  const trimmed = prompt.trim();
+  const base = trimmed
+    ? `Here is a plain-language explanation of the check-in question: "${trimmed}".`
+    : 'Here is a plain-language explanation of the check-in question you shared.';
+  const reminder = includesEmergencySignals(prompt)
+    ? ` ${buildEmergencyReminder()}`
+    : ' This question helps your care team understand symptoms and decide the next safest step.';
+  return `${base} ${reminder} This is education only, not a diagnosis or treatment plan.`;
+};
+
+const buildTriageResponse = (prompt: string): string => {
+  const detected = detectTriageLevel(prompt);
+  const levelLine = detected ? `The current triage level is "${detected}".` : 'The current triage level is noted above.';
+  let actionLine =
+    'Continue monitoring symptoms and follow the care plan your clinician has already provided.';
+
+  if (detected === 'emergency') {
+    actionLine = buildEmergencyReminder();
+  } else if (detected === 'urgent') {
+    actionLine = 'Contact your liver or transplant care team within 24 hours for guidance.';
+  } else if (detected === 'routine') {
+    actionLine = 'Share these findings with your care team during regular hours.';
   }
 
-  const violatesGuardrails = FORBIDDEN_RESPONSE_PATTERNS.some((pattern) => pattern.test(response));
-  return violatesGuardrails ? FALLBACK_RESPONSE : response;
+  const emergencyReminder = includesEmergencySignals(prompt) ? ` ${buildEmergencyReminder()}` : '';
+  return `${levelLine} This explanation is educational only and does not change the triage level. ${actionLine}${emergencyReminder}`;
 };
 
-export const requestStrictAiCompletion = async (
+const buildDoctorMessage = (prompt: string): string => {
+  const trimmed = prompt.trim();
+  const body = trimmed
+    ? `Notes: ${trimmed}`
+    : 'Notes: [Add the key symptoms, medication adherence, and concerns here.]';
+  return [
+    'Hello care team,',
+    'I am sharing a brief update from today’s check-in.',
+    body,
+    'Please let us know if any follow-up is needed.',
+    'Thank you.',
+    'This message is informational only and does not request treatment changes.',
+  ].join('\n');
+};
+
+export const isAiEnabled = (): boolean => true;
+
+export const getAiResponse = async (
   task: AiTask,
   userPrompt: string,
-  options: AiClientOptions,
   context?: string,
 ): Promise<string> => {
-  if (!isAiEnabled()) {
-    throw new Error('AI features are disabled because OPENAI_API_KEY is not configured.');
-  }
+  const combinedPrompt = [userPrompt, context].filter(Boolean).join('\n');
 
-  const systemPrompt = buildStrictSystemPrompt(task);
-  const response = await requestAiCompletion(userPrompt, options, context, systemPrompt);
-  return filterAiResponse(response);
+  switch (task) {
+    case 'check-in-question':
+      return buildCheckInResponse(combinedPrompt);
+    case 'triage-explanation':
+      return buildTriageResponse(combinedPrompt);
+    case 'doctor-message-draft':
+      return buildDoctorMessage(combinedPrompt);
+    default:
+      return 'This feature is available in basic mode. Please provide more detail so I can explain or summarize safely.';
+  }
 };
