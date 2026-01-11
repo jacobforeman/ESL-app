@@ -4,13 +4,14 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getTodayAdherenceSnapshot, summarizeAdherence } from '../logic/medTracker';
 import { readStore } from '../storage';
 import { journalStore, profileStore, triageHistoryStore } from '../storage/stores';
-import type { JournalEntry, TriageHistoryEntry } from '../storage/types';
+import type { CaregiverMode, JournalEntry, TriageHistoryEntry } from '../storage/types';
 import { colors } from '../theme/colors';
 import type { MedAdherenceSnapshotItem } from '../types/meds';
+import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
 
 const HomeScreen = () => {
   const [profileName, setProfileName] = useState('');
-  const [caregiverMode, setCaregiverMode] = useState<'patient' | 'caregiver'>('patient');
+  const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
   const [triageHistory, setTriageHistory] = useState<TriageHistoryEntry[]>([]);
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
   const [adherenceSummary, setAdherenceSummary] = useState({ taken: 0, missed: 0 });
@@ -31,10 +32,10 @@ const HomeScreen = () => {
       summarizeAdherence(),
       getTodayAdherenceSnapshot(),
     ]);
-    setProfileName(profile.name);
-    setCaregiverMode(profile.caregiverMode);
-    setTriageHistory(triage);
-    setJournalEntries(journal);
+    setProfileName(profile?.name ?? '');
+    setCaregiverMode(profile?.caregiverMode ?? 'patient');
+    setTriageHistory(triage ?? []);
+    setJournalEntries(journal ?? []);
     setAdherenceSummary(adherenceSummaryResult);
     setAdherenceSnapshot(adherenceSnapshotResult);
   }, []);
@@ -46,13 +47,13 @@ const HomeScreen = () => {
     });
   }, [loadData]);
 
+  const possessive = getCaregiverPossessive(caregiverMode);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Welcome back{profileName ? `, ${profileName}` : ''}</Text>
       <Text style={styles.subtitle}>
-        {caregiverMode === 'caregiver'
-          ? 'Caregiver mode is on. Log observations for your loved one.'
-          : 'Patient mode is on. Log today’s check-in and updates.'}
+        Start today&apos;s check-in to track {possessive} symptoms and get guidance.
       </Text>
       {statusMessage ? <Text style={styles.status}>{statusMessage}</Text> : null}
 

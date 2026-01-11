@@ -9,3 +9,8 @@ export const buildCaregiverPhrase = (mode: CaregiverMode, action: string): strin
   const prefix = caregiverPrefixes[mode] ?? caregiverPrefixes.patient;
   return `${prefix} ${action}`;
 };
+
+export const getCaregiverPossessive = (mode: CaregiverMode): string => {
+  const prefix = caregiverPrefixes[mode] ?? caregiverPrefixes.patient;
+  return prefix === caregiverPrefixes.caregiver ? "your loved one's" : 'your';
+};
