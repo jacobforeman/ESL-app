@@ -1,23 +1,22 @@
 import React, { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 
 import ActionButton from '../components/ActionButton';
-import { buildExportSummary } from '../export/summaryGenerator';
+import { buildExportSummary } from '../utils/exportSummary';
 import { readStore } from '../storage';
 import {
   checkInStore,
-  journalStore,
   medAdherenceStore,
-  medConfigStore,
-  moduleSelectionStore,
   profileStore,
   triageHistoryStore,
 } from '../storage/stores';
-import type { ExportSummary } from '../export/summaryGenerator';
+import type { ExportSummaryResult } from '../types/exportSummary';
 import { colors } from '../theme/colors';
+import { getCaregiverLabel } from '../utils/caregiverPhrasing';
 
 const ExportSummaryScreen = () => {
-  const [summary, setSummary] = useState<ExportSummary | null>(null);
+  const [summary, setSummary] = useState<ExportSummaryResult | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -25,25 +24,49 @@ const ExportSummaryScreen = () => {
     setLoading(true);
     setStatus(null);
     try {
-      const [profile, modules, checkIns, triageHistory, medConfig, medAdherence, journal] =
+      const [profileEnvelope, checkInsEnvelope, triageEnvelope, medAdherenceEnvelope] =
         await Promise.all([
           readStore(profileStore),
-          readStore(moduleSelectionStore),
           readStore(checkInStore),
           readStore(triageHistoryStore),
-          readStore(medConfigStore),
           readStore(medAdherenceStore),
-          readStore(journalStore),
         ]);
 
+      const lastCheckIn = checkInsEnvelope.data[0];
+      if (!lastCheckIn) {
+        setSummary(null);
+        setStatus('Add a check-in before generating an export summary.');
+        return;
+      }
+
+      const triageResult =
+        triageEnvelope.data.find((entry) => entry.checkInId === lastCheckIn.id) ??
+        triageEnvelope.data[0];
+      if (!triageResult) {
+        setSummary(null);
+        setStatus('Run a triage check-in before generating an export summary.');
+        return;
+      }
+
+      const dateKey = lastCheckIn.createdAt.slice(0, 10);
+      const adherenceEntries = medAdherenceEnvelope.data.filter((entry) => entry.date === dateKey);
+      const takenCount = adherenceEntries.filter((entry) => entry.taken).length;
+      const missedCount = adherenceEntries.filter((entry) => !entry.taken).length;
+
       const nextSummary = buildExportSummary({
-        profile: profile.data,
-        moduleSelection: modules.data,
-        checkIns: checkIns.data,
-        triageHistory: triageHistory.data,
-        medConfig: medConfig.data,
-        medAdherence: medAdherence.data,
-        journalEntries: journal.data,
+        profile: {
+          id: profileEnvelope.data.id,
+          name: profileEnvelope.data.name || 'Unnamed profile',
+          caregiverMode: profileEnvelope.data.caregiverMode,
+        },
+        lastCheckIn,
+        triageResult,
+        medsAdherenceSnapshot: {
+          date: dateKey,
+          entries: adherenceEntries,
+          takenCount,
+          missedCount,
+        },
       });
 
       setSummary(nextSummary);
@@ -72,61 +95,38 @@ const ExportSummaryScreen = () => {
 
       {summary ? (
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Overview</Text>
+          <Text style={styles.sectionTitle}>SBAR report</Text>
           <Text style={styles.sectionSubtitle}>
-            {summary.header.patientName || 'Unnamed profile'} · {summary.header.modeLabel}
+            {summary.summary.profile.name} · {getCaregiverLabel(summary.summary.profile.caregiverMode)}
           </Text>
-          <Text style={styles.narrative}>{summary.narrative}</Text>
+          <Text style={styles.narrative} selectable>
+            {summary.sbar}
+          </Text>
 
           <View style={styles.divider} />
 
-          <Text style={styles.sectionTitle}>Triage history</Text>
-          <Text style={styles.sectionSubtitle}>
-            Latest level: {summary.triage.latestLevel ?? 'No recent triage results'}
-          </Text>
-          {summary.triage.recentEntries.length === 0 ? (
-            <Text style={styles.emptyText}>No triage entries available.</Text>
-          ) : (
-            summary.triage.recentEntries.map((entry) => (
-              <Text key={entry.id} style={styles.listText}>
-                • {new Date(entry.createdAt).toLocaleDateString()} — {entry.level}
-              </Text>
-            ))
-          )}
-
-          <View style={styles.divider} />
-
-          <Text style={styles.sectionTitle}>Medications</Text>
-          <Text style={styles.sectionSubtitle}>
-            {summary.medications.meds.length} medication(s) ·{' '}
-            {summary.medications.adherence.length} adherence entries
-          </Text>
-          {summary.medications.meds.length === 0 ? (
-            <Text style={styles.emptyText}>No medications configured.</Text>
-          ) : (
-            summary.medications.meds.map((med) => (
-              <Text key={med.id} style={styles.listText}>
-                • {med.name} — {med.dose}
-              </Text>
-            ))
-          )}
-
-          <View style={styles.divider} />
-
-          <Text style={styles.sectionTitle}>Journal</Text>
-          <Text style={styles.sectionSubtitle}>
-            {summary.journal.redFlagCount} red-flag note(s) ·{' '}
-            {summary.journal.recentEntries.length} recent entries
-          </Text>
-          {summary.journal.recentEntries.length === 0 ? (
-            <Text style={styles.emptyText}>No journal entries available.</Text>
-          ) : (
-            summary.journal.recentEntries.map((entry) => (
-              <Text key={entry.id} style={styles.listText}>
-                • {new Date(entry.createdAt).toLocaleDateString()} — {entry.text}
-              </Text>
-            ))
-          )}
+          <View style={styles.actionRow}>
+            <ActionButton
+              label="Copy SBAR"
+              onPress={async () => {
+                await Clipboard.setStringAsync(summary.sbar);
+                setStatus('SBAR copied to clipboard.');
+              }}
+              variant="secondary"
+              style={styles.actionButton}
+            />
+            <ActionButton
+              label="Share SBAR"
+              onPress={async () => {
+                await Share.share({
+                  message: summary.sbar,
+                  title: 'SBAR Export Summary',
+                });
+              }}
+              variant="primary"
+              style={styles.actionButton}
+            />
+          </View>
         </View>
       ) : null}
     </ScrollView>
@@ -176,18 +176,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textPrimary,
   },
-  listText: {
-    fontSize: 13,
-    color: colors.textPrimary,
-  },
   divider: {
     height: 1,
     backgroundColor: colors.border,
   },
-  emptyText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionButton: {
+    flex: 1,
   },
 });
 

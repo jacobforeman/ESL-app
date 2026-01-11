@@ -7,8 +7,12 @@ import { buildCheckInSchema } from '../../logic/checkInSchema';
 import { getTodayAdherenceSnapshot } from '../../logic/medTracker';
 import { runTriage } from '../../logic/triageEngine';
 import { appendCheckInHistory } from '../../state/checkInHistory';
+import { readStore } from '../../storage';
+import { profileStore } from '../../storage/stores';
+import type { CaregiverMode } from '../../storage/types';
 import { CheckInAnswers, QuestionDefinition, TriageLevel } from '../../types/checkIn';
 import { MedAdherenceSnapshotItem, MedAdherenceStatus } from '../../types/meds';
+import { getCaregiverPossessive } from '../../utils/caregiverPhrasing';
 import { QuestionRenderer } from './QuestionRenderer';
 
 type CheckInWizardProps = {
@@ -22,6 +26,7 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [adherenceSnapshot, setAdherenceSnapshot] = useState<MedAdherenceSnapshotItem[]>([]);
   const [adherenceError, setAdherenceError] = useState<string | null>(null);
+  const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
 
   const schema = useMemo(() => buildCheckInSchema(questions), [questions]);
   const totalSteps = questions.length + 1;
@@ -33,8 +38,12 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
 
     const loadSnapshot = async () => {
       try {
-        const snapshot = await getTodayAdherenceSnapshot();
+        const [{ data: profile }, snapshot] = await Promise.all([
+          readStore(profileStore),
+          getTodayAdherenceSnapshot(),
+        ]);
         if (isMounted) {
+          setCaregiverMode(profile.caregiverMode);
           setAdherenceSnapshot(snapshot);
         }
       } catch (error) {
@@ -98,7 +107,12 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>{questionFlowConfig.title}</Text>
+      <Text style={styles.heading}>
+        {caregiverMode === 'caregiver' ? 'Caregiver Check-In' : questionFlowConfig.title}
+      </Text>
+      <Text style={styles.subheading}>
+        Complete today&apos;s check-in for {getCaregiverPossessive(caregiverMode)} symptoms.
+      </Text>
       <Text style={styles.progress}>
         Step {currentIndex + 1} of {totalSteps}
       </Text>
@@ -107,7 +121,7 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
         <View style={styles.adherenceStep}>
           <Text style={styles.sectionTitle}>Medication adherence</Text>
           <Text style={styles.sectionDescription}>
-            Review today’s medications and update any missed doses.
+            Review {getCaregiverPossessive(caregiverMode)} medications and update any missed doses.
           </Text>
           {adherenceSnapshot.length === 0 ? (
             <Text style={styles.emptyState}>No medications saved for today.</Text>
@@ -193,6 +207,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     marginBottom: 4,
+  },
+  subheading: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 12,
   },
   progress: {
     fontSize: 14,

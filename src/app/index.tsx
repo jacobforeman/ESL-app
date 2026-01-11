@@ -1,12 +1,32 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
+import { readStore } from '../storage';
+import { profileStore } from '../storage/stores';
+import type { CaregiverMode } from '../storage/types';
+import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
+
 const HomeScreen = () => {
+  const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data } = await readStore(profileStore);
+      setCaregiverMode(data.caregiverMode);
+    };
+
+    loadProfile().catch((error) => {
+      console.warn('Unable to load profile for home screen.', error);
+    });
+  }, []);
+
+  const possessive = getCaregiverPossessive(caregiverMode);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Welcome back</Text>
       <Text style={styles.subtitle}>
-        Start today&apos;s check-in to track symptoms and get guidance.
+        Start today&apos;s check-in to track {possessive} symptoms and get guidance.
       </Text>
     </View>
   );
