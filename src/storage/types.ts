@@ -15,10 +15,13 @@ export interface ModuleSelection {
 export interface CheckIn {
   id: string;
   createdAt: string;
+  reportedAt?: string;
   symptoms: string[];
   vitals: Record<string, number | string>;
   missedMeds: string[];
   notes?: string;
+  caregiverNotes?: string;
+  schemaVersion?: number;
 }
 
 export type TriageLevel = 'emergency' | 'urgent' | 'routine' | 'self-monitor';
@@ -29,7 +32,10 @@ export interface TriageHistoryEntry {
   createdAt: string;
   level: TriageLevel;
   rationale: string[];
+  ruleIds?: string[];
   recommendedAction?: string;
+  inputSnapshot?: Record<string, unknown>;
+  schemaVersion?: number;
 }
 
 export interface MedConfigItem {
@@ -58,10 +64,30 @@ export interface JournalEntry {
   createdAt: string;
   author: CaregiverMode;
   text: string;
+  tags?: string[];
+  caregiverNotes?: string;
   redFlags?: string[];
 }
 
 export interface StorageEnvelope<T> {
   version: number;
   data: T;
+}
+
+export interface AuditEvent {
+  id: string;
+  timestamp: string;
+  userRole: CaregiverMode;
+  actionType: string;
+  entity: string;
+  entityId?: string;
+  metadata?: Record<string, string>;
+}
+
+export interface JournalSummaryEntry {
+  id: string;
+  createdAt: string;
+  rangeDays: number;
+  promptVersion: string;
+  summary: string;
 }

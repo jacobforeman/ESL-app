@@ -1,18 +1,21 @@
-import { buildExportSummary } from '../src/export/summaryGenerator';
-import { ExportSummaryInput } from '../src/export/summaryGenerator';
+import { buildExportSummary } from '../src/utils/exportSummary';
+import { ExportSummaryPayload } from '../src/types/exportSummary';
 
-const baseInput: ExportSummaryInput = {
+const baseInput: ExportSummaryPayload = {
   profile: {
     id: 'p1',
     name: 'Alex',
     caregiverMode: 'caregiver',
-    updatedAt: '2024-01-01T00:00:00.000Z',
   },
-  moduleSelection: {
-    enabledModules: ['check-ins', 'journal'],
-    updatedAt: '2024-01-01T00:00:00.000Z',
-  },
-  checkIns: [],
+  checkIns: [
+    {
+      id: 'c1',
+      createdAt: '2024-01-02T00:00:00.000Z',
+      symptoms: ['Fever'],
+      vitals: { temperatureC: 38.2 },
+      missedMeds: [],
+    },
+  ],
   triageHistory: [
     {
       id: 't1',
@@ -20,12 +23,9 @@ const baseInput: ExportSummaryInput = {
       createdAt: '2024-01-02T00:00:00.000Z',
       level: 'urgent',
       rationale: ['test'],
+      ruleIds: ['urgent_fever_high'],
     },
   ],
-  medConfig: {
-    meds: [],
-    updatedAt: '2024-01-01T00:00:00.000Z',
-  },
   medAdherence: [],
   journalEntries: [
     {
@@ -34,6 +34,7 @@ const baseInput: ExportSummaryInput = {
       author: 'caregiver',
       text: 'Feeling ok',
       redFlags: ['confusion'],
+      tags: ['mood'],
     },
   ],
 };
@@ -42,9 +43,9 @@ describe('buildExportSummary', () => {
   it('returns structured summary payload', () => {
     const summary = buildExportSummary(baseInput);
 
-    expect(summary.header.patientName).toBe('Alex');
-    expect(summary.triage.latestLevel).toBe('urgent');
-    expect(summary.journal.redFlagCount).toBe(1);
-    expect(summary.narrative).toContain('Your loved one');
+    expect(summary.profile.name).toBe('Alex');
+    expect(summary.triageResults[0].level).toBe('urgent');
+    expect(summary.journalHighlights[0].redFlags).toEqual(['confusion']);
+    expect(summary.structuredJson).toContain('triageResults');
   });
 });

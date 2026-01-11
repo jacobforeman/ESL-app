@@ -1,8 +1,12 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { Linking, View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { TriageLevel } from '../../types/checkIn';
+import { readStore } from '../../storage';
+import { profileStore } from '../../storage/stores';
+import { logAuditEvent } from '../../logic/auditLog';
+import { CLINIC_PHONE } from '../../config/contacts';
 
 type ResultScreenProps = {
   level: TriageLevel;
@@ -34,9 +38,41 @@ export const ResultScreen = ({
     router.push('/explain-result');
   };
 
+  const handleOpenJournal = () => {
+    router.push('/journal');
+  };
+
+  const handleCallEmergency = () => {
+    Linking.openURL('tel:911').catch((error) => {
+      console.warn('Unable to open emergency dialer.', error);
+    });
+  };
+
+  const handleCallClinic = () => {
+    Linking.openURL(CLINIC_PHONE).catch((error) => {
+      console.warn('Unable to open clinic dialer.', error);
+    });
+  };
+
   const handleDone = () => {
     router.push('/');
   };
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      const { data } = await readStore(profileStore);
+      await logAuditEvent({
+        userRole: data.caregiverMode,
+        actionType: 'triage_viewed',
+        entity: 'triage-result',
+        metadata: { level },
+      });
+    };
+
+    loadProfile().catch((error) => {
+      console.warn('Unable to load caregiver mode for audit log.', error);
+    });
+  }, [level]);
 
   return (
     <View style={styles.container}>
@@ -48,12 +84,27 @@ export const ResultScreen = ({
       <Text style={styles.actionText}>{ACTIONS_BY_LEVEL[level]}</Text>
 
       <View style={styles.actions}>
+        {level === 'emergency' ? (
+          <Pressable onPress={handleCallEmergency} style={styles.buttonPrimary}>
+            <Text style={styles.buttonPrimaryText}>Call 911</Text>
+          </Pressable>
+        ) : null}
+        {level === 'urgent' ? (
+          <Pressable onPress={handleCallClinic} style={styles.buttonPrimary}>
+            <Text style={styles.buttonPrimaryText}>Call clinic</Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={handleExportSummary} style={styles.buttonSecondary}>
           <Text style={styles.buttonSecondaryText}>Export summary</Text>
         </Pressable>
-        <Pressable onPress={handleExplainResult} style={styles.buttonSecondary}>
-          <Text style={styles.buttonSecondaryText}>Explain result</Text>
+        <Pressable onPress={handleOpenJournal} style={styles.buttonSecondary}>
+          <Text style={styles.buttonSecondaryText}>Open journal</Text>
         </Pressable>
+        {level !== 'emergency' ? (
+          <Pressable onPress={handleExplainResult} style={styles.buttonSecondary}>
+            <Text style={styles.buttonSecondaryText}>Explain result</Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={handleDone} style={styles.buttonPrimary}>
           <Text style={styles.buttonPrimaryText}>Done</Text>
         </Pressable>
@@ -62,6 +113,11 @@ export const ResultScreen = ({
       <Text style={styles.disclaimer}>
         This app does not replace medical care. If symptoms worsen, seek immediate help.
       </Text>
+      {level === 'emergency' ? (
+        <Text style={styles.disclaimer}>
+          Emergency guidance only. AI explanations are disabled during emergency results.
+        </Text>
+      ) : null}
     </View>
   );
 };

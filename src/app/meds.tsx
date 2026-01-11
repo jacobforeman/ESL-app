@@ -9,13 +9,21 @@ import {
 } from 'react-native';
 
 import ActionButton from '../components/ActionButton';
-import { addMedication, getTodayAdherenceSnapshot, recordDose, summarizeAdherence } from '../logic/medTracker';
+import {
+  addMedication,
+  getTodayAdherenceSnapshot,
+  recordDose,
+  scheduleMedicationReminders,
+  summarizeAdherence,
+  summarizeWeeklyAdherence,
+} from '../logic/medTracker';
 import { readStore } from '../storage';
 import { medConfigStore, profileStore } from '../storage/stores';
 import type { CaregiverMode, MedConfigItem } from '../storage/types';
 import { colors } from '../theme/colors';
 import type { MedAdherenceSnapshotItem } from '../types/meds';
 import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
+import { logAuditEvent } from '../logic/auditLog';
 
 const todayKey = (): string => new Date().toISOString().slice(0, 10);
 const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -24,25 +32,42 @@ const MedsScreen = () => {
   const [meds, setMeds] = useState<MedConfigItem[]>([]);
   const [snapshot, setSnapshot] = useState<MedAdherenceSnapshotItem[]>([]);
   const [summary, setSummary] = useState({ taken: 0, missed: 0, percentage: 0 });
+  const [weeklySummary, setWeeklySummary] = useState({
+    taken: 0,
+    missed: 0,
+    percentage: 0,
+    startDate: '',
+    endDate: '',
+  });
   const [name, setName] = useState('');
   const [dose, setDose] = useState('');
   const [schedule, setSchedule] = useState('');
   const [critical, setCritical] = useState(false);
+  const [missedReason, setMissedReason] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [caregiverMode, setCaregiverMode] = useState<CaregiverMode>('patient');
 
   const loadData = useCallback(async () => {
-    const [{ data: profile }, { data: config }, adherenceSnapshot, adherenceSummary] = await Promise.all([
+    const [
+      { data: profile },
+      { data: config },
+      adherenceSnapshot,
+      adherenceSummary,
+      weekly,
+    ] = await Promise.all([
       readStore(profileStore),
       readStore(medConfigStore),
       getTodayAdherenceSnapshot(),
       summarizeAdherence(),
+      summarizeWeeklyAdherence(),
     ]);
     setCaregiverMode(profile.caregiverMode);
     setMeds(config.meds);
     setSnapshot(adherenceSnapshot);
     setSummary(adherenceSummary);
+    setWeeklySummary(weekly);
   }, []);
 
   useEffect(() => {
@@ -54,6 +79,7 @@ const MedsScreen = () => {
 
   const handleAddMedication = async () => {
     setErrorMessage(null);
+    setStatusMessage(null);
     if (!name.trim() || !dose.trim()) {
       setErrorMessage('Please enter a medication name and dose.');
       return;
@@ -78,6 +104,7 @@ const MedsScreen = () => {
       setDose('');
       setSchedule('');
       setCritical(false);
+      setStatusMessage('Medication saved.');
       await loadData();
     } catch (error) {
       console.warn('Unable to save medication.', error);
@@ -90,14 +117,26 @@ const MedsScreen = () => {
   const handleRecordDose = async (medId: string, taken: boolean) => {
     setLoading(true);
     setErrorMessage(null);
+    setStatusMessage(null);
     try {
       await recordDose({
         id: createId(),
         medId,
         date: todayKey(),
         taken,
-        reason: taken ? undefined : 'Marked missed in daily tracker.',
+        reason: taken ? undefined : missedReason.trim() || 'Marked missed in daily tracker.',
       });
+      if (!taken) {
+        setMissedReason('');
+      }
+      await logAuditEvent({
+        userRole: caregiverMode,
+        actionType: 'med_logged',
+        entity: 'med-adherence',
+        entityId: medId,
+        metadata: { taken: String(taken) },
+      });
+      setStatusMessage(taken ? 'Dose logged as taken.' : 'Dose logged as missed.');
       await loadData();
     } catch (error) {
       console.warn('Unable to record dose.', error);
@@ -121,6 +160,17 @@ const MedsScreen = () => {
         <Text style={styles.sectionSubtitle}>
           {summary.taken} taken · {summary.missed} missed · {summary.percentage}% adherence
         </Text>
+        <Text style={styles.sectionSubtitle}>
+          Weekly adherence ({weeklySummary.startDate} - {weeklySummary.endDate}): {weeklySummary.taken} taken ·{' '}
+          {weeklySummary.missed} missed · {weeklySummary.percentage}% adherence
+        </Text>
+        <TextInput
+          value={missedReason}
+          onChangeText={setMissedReason}
+          placeholder="Optional reason for missed doses"
+          placeholderTextColor={colors.textSecondary}
+          style={styles.input}
+        />
         {snapshot.length === 0 ? (
           <Text style={styles.emptyText}>No medications configured yet.</Text>
         ) : (
@@ -193,6 +243,15 @@ const MedsScreen = () => {
           onPress={handleAddMedication}
           variant="primary"
         />
+        <ActionButton
+          label="Schedule reminders (stub)"
+          onPress={async () => {
+            await scheduleMedicationReminders();
+            setStatusMessage('Reminder scheduling stubbed.');
+          }}
+          variant="secondary"
+        />
+        {statusMessage ? <Text style={styles.statusText}>{statusMessage}</Text> : null}
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </View>
 
@@ -319,6 +378,10 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     color: '#B91C1C',
+  },
+  statusText: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
   emptyText: {
     fontSize: 14,

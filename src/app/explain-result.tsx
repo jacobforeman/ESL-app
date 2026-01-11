@@ -2,7 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import ActionButton from '../components/ActionButton';
-import { getAiResponse } from '../logic/AiHelper';
+import { AI_PROMPT_VERSION_ID, getAiResponse } from '../logic/AiHelper';
+import { triggerEmergencyAlert } from '../logic/alertsService';
+import { logAuditEvent } from '../logic/auditLog';
+import { scanTextForRedFlags } from '../logic/redFlags';
 import { readStore } from '../storage';
 import { profileStore, triageHistoryStore } from '../storage/stores';
 import type { CaregiverMode, TriageHistoryEntry } from '../storage/types';
@@ -48,8 +51,25 @@ const ExplainResultScreen = () => {
 
     setLoading(true);
     try {
+      const redFlags = scanTextForRedFlags(userPrompt);
+      if (redFlags.length > 0) {
+        triggerEmergencyAlert({
+          message: 'Critical symptoms detected in AI explanation request.',
+          details: redFlags,
+          source: 'explain-result',
+        });
+      }
       const completion = await getAiResponse('triage-explanation', userPrompt);
       setResponse(completion || 'No response returned.');
+      await logAuditEvent({
+        userRole: caregiverMode,
+        actionType: 'ai_message_generated',
+        entity: 'triage-explanation',
+        metadata: {
+          triageLevel: triageResult?.level ?? 'unknown',
+          promptVersion: AI_PROMPT_VERSION_ID,
+        },
+      });
     } catch (error) {
       console.warn('AI request failed.', error);
       setStatus('Unable to retrieve AI response.');
@@ -102,12 +122,14 @@ const ExplainResultScreen = () => {
           variant="primary"
         />
         {status ? <Text style={styles.statusText}>{status}</Text> : null}
+        <Text style={styles.disclaimer}>Not medical advice. AI explanation only.</Text>
       </View>
 
       {response ? (
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>AI explanation</Text>
           <Text style={styles.responseText}>{response}</Text>
+          <Text style={styles.disclaimer}>Not medical advice.</Text>
         </View>
       ) : null}
     </ScrollView>
@@ -179,6 +201,10 @@ const styles = StyleSheet.create({
   responseText: {
     fontSize: 14,
     color: colors.textPrimary,
+  },
+  disclaimer: {
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   emptyText: {
     fontSize: 14,

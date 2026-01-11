@@ -2,7 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import ActionButton from '../components/ActionButton';
-import { AiTask, getAiResponse } from '../logic/AiHelper';
+import { AiTask, AI_PROMPT_VERSION_ID, getAiResponse } from '../logic/AiHelper';
+import { triggerEmergencyAlert } from '../logic/alertsService';
+import { logAuditEvent } from '../logic/auditLog';
+import { scanTextForRedFlags } from '../logic/redFlags';
 import { readStore } from '../storage';
 import { profileStore } from '../storage/stores';
 import type { CaregiverMode } from '../storage/types';
@@ -45,8 +48,22 @@ const AiScreen = () => {
 
     setLoading(true);
     try {
+      const redFlags = scanTextForRedFlags(prompt.trim());
+      if (redFlags.length > 0) {
+        triggerEmergencyAlert({
+          message: 'Critical symptoms detected in AI prompt.',
+          details: redFlags,
+          source: 'ai',
+        });
+      }
       const completion = await getAiResponse(task, prompt.trim());
       setResponse(completion || 'No response returned.');
+      await logAuditEvent({
+        userRole: caregiverMode,
+        actionType: 'ai_message_generated',
+        entity: 'ai-response',
+        metadata: { task, promptVersion: AI_PROMPT_VERSION_ID },
+      });
     } catch (error) {
       console.warn('AI request failed.', error);
       setStatus('Unable to retrieve AI response.');
@@ -103,12 +120,14 @@ const AiScreen = () => {
           variant="primary"
         />
         {status ? <Text style={styles.statusText}>{status}</Text> : null}
+        <Text style={styles.disclaimer}>Not medical advice. AI is for education and drafting only.</Text>
       </View>
 
       {response ? (
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Response</Text>
           <Text style={styles.responseText}>{response}</Text>
+          <Text style={styles.disclaimer}>Not medical advice.</Text>
         </View>
       ) : null}
     </ScrollView>
@@ -186,6 +205,10 @@ const styles = StyleSheet.create({
   responseText: {
     fontSize: 14,
     color: colors.textPrimary,
+  },
+  disclaimer: {
+    fontSize: 12,
+    color: colors.textSecondary,
   },
 });
 

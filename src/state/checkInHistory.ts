@@ -19,11 +19,23 @@ const buildSymptoms = (answers: CheckInAnswers, context?: CheckInContext): strin
   if (answers.severeConfusion === true) {
     symptoms.push('Severe confusion');
   }
+  if (answers.shortnessOfBreath === true) {
+    symptoms.push('Shortness of breath');
+  }
   if (answers.fever === true) {
     symptoms.push('Fever');
   }
   if (typeof answers.abdominalPain === 'string' && answers.abdominalPain !== 'none') {
     symptoms.push(`Abdominal pain (${answers.abdominalPain})`);
+  }
+  if (answers.jaundiceWorsening === true) {
+    symptoms.push('Worsening jaundice');
+  }
+  if (answers.ascitesWorsening === true) {
+    symptoms.push('Worsening ascites');
+  }
+  if (answers.edemaWorsening === true) {
+    symptoms.push('Worsening edema');
   }
   if (context?.journalRedFlags?.length) {
     context.journalRedFlags.forEach((flag) => {
@@ -37,6 +49,21 @@ const buildSymptoms = (answers: CheckInAnswers, context?: CheckInContext): strin
 const buildVitals = (answers: CheckInAnswers): Record<string, number | string> => {
   const vitals: Record<string, number | string> = {};
 
+  if (typeof answers.temperatureC === 'number') {
+    vitals.temperatureC = answers.temperatureC;
+  }
+  if (typeof answers.heartRate === 'number') {
+    vitals.heartRate = answers.heartRate;
+  }
+  if (typeof answers.systolicBP === 'number') {
+    vitals.systolicBP = answers.systolicBP;
+  }
+  if (typeof answers.diastolicBP === 'number') {
+    vitals.diastolicBP = answers.diastolicBP;
+  }
+  if (typeof answers.oxygenSat === 'number') {
+    vitals.oxygenSat = answers.oxygenSat;
+  }
   if (typeof answers.weightChange === 'number') {
     vitals.weightChange = answers.weightChange;
   }
@@ -53,15 +80,25 @@ const buildCheckInEntry = (answers: CheckInAnswers, context?: CheckInContext): C
   return {
     id: createId(),
     createdAt,
+    reportedAt: typeof answers.checkInTimestamp === 'string' ? answers.checkInTimestamp : undefined,
     symptoms: buildSymptoms(answers, context),
     vitals: buildVitals(answers),
     missedMeds:
       missedMeds && missedMeds.length > 0
         ? missedMeds
         : answers.missedMeds === true
-          ? ['Liver-related medications']
+          ? [
+              typeof answers.missedMedsDetail === 'string' && answers.missedMedsDetail.trim()
+                ? answers.missedMedsDetail.trim()
+                : 'Liver-related medications',
+            ]
           : [],
     notes: typeof answers.notes === 'string' ? answers.notes : undefined,
+    caregiverNotes:
+      typeof answers.caregiverNotes === 'string' && answers.caregiverNotes.trim()
+        ? answers.caregiverNotes.trim()
+        : undefined,
+    schemaVersion: 2,
   };
 };
 
@@ -87,7 +124,14 @@ export const appendCheckInHistory = async (
     createdAt: checkIn.createdAt,
     level: decision.level,
     rationale: decision.rationale,
+    ruleIds: decision.ruleIds,
     recommendedAction: decision.recommendedAction,
+    inputSnapshot: {
+      answers,
+      medAdherence: context?.medAdherence ?? [],
+      journalRedFlags: context?.journalRedFlags ?? [],
+    },
+    schemaVersion: 2,
   };
 
   await updateStore(checkInStore, (entries) => [checkIn, ...entries]);

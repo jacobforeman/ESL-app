@@ -4,6 +4,8 @@ import * as Clipboard from 'expo-clipboard';
 
 import ActionButton from '../components/ActionButton';
 import { buildExportSummary } from '../utils/exportSummary';
+import { AI_PROMPT_VERSION_ID, getAiResponse } from '../logic/AiHelper';
+import { logAuditEvent } from '../logic/auditLog';
 import { readStore } from '../storage';
 import {
   checkInStore,
@@ -18,8 +20,10 @@ import { getCaregiverLabel } from '../utils/caregiverPhrasing';
 
 const ExportSummaryScreen = () => {
   const [summary, setSummary] = useState<ExportSummaryResult | null>(null);
+  const [clinicianMessage, setClinicianMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [messageLoading, setMessageLoading] = useState(false);
 
   const handleGenerate = useCallback(async () => {
     setLoading(true);
@@ -39,29 +43,11 @@ const ExportSummaryScreen = () => {
         readStore(journalStore),
       ]);
 
-      const lastCheckIn = checkInsEnvelope.data[0];
-      if (!lastCheckIn) {
+      if (checkInsEnvelope.data.length === 0 || triageEnvelope.data.length === 0) {
         setSummary(null);
-        setStatus('Add a check-in before generating an export summary.');
+        setStatus('Add a check-in and triage result before generating an export summary.');
         return;
       }
-
-      const triageResult =
-        triageEnvelope.data.find((entry) => entry.checkInId === lastCheckIn.id) ??
-        triageEnvelope.data[0];
-      if (!triageResult) {
-        setSummary(null);
-        setStatus('Run a triage check-in before generating an export summary.');
-        return;
-      }
-
-      const dateKey = lastCheckIn.createdAt.slice(0, 10);
-      const adherenceEntries = medAdherenceEnvelope.data.filter((entry) => entry.date === dateKey);
-      const takenCount = adherenceEntries.filter((entry) => entry.taken).length;
-      const missedCount = adherenceEntries.filter((entry) => !entry.taken).length;
-      const journalEntries = [...journalEnvelope.data]
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .slice(0, 3);
 
       const nextSummary = buildExportSummary({
         profile: {
@@ -69,18 +55,19 @@ const ExportSummaryScreen = () => {
           name: profileEnvelope.data.name || 'Unnamed profile',
           caregiverMode: profileEnvelope.data.caregiverMode,
         },
-        lastCheckIn,
-        triageResult,
-        medsAdherenceSnapshot: {
-          date: dateKey,
-          entries: adherenceEntries,
-          takenCount,
-          missedCount,
-        },
-        journalEntries,
+        checkIns: checkInsEnvelope.data,
+        triageHistory: triageEnvelope.data,
+        medAdherence: medAdherenceEnvelope.data,
+        journalEntries: journalEnvelope.data,
       });
 
       setSummary(nextSummary);
+      setClinicianMessage(null);
+      await logAuditEvent({
+        userRole: profileEnvelope.data.caregiverMode,
+        actionType: 'export_generated',
+        entity: 'export-summary',
+      });
       setStatus('Summary generated.');
     } catch (error) {
       console.warn('Unable to build export summary.', error);
@@ -106,32 +93,105 @@ const ExportSummaryScreen = () => {
 
       {summary ? (
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>SBAR report</Text>
+          <Text style={styles.sectionTitle}>Export snapshot</Text>
           <Text style={styles.sectionSubtitle}>
-            {summary.summary.profile.name} · {getCaregiverLabel(summary.summary.profile.caregiverMode)}
+            {summary.profile.name} · {getCaregiverLabel(summary.profile.caregiverMode)}
           </Text>
-          <Text style={styles.narrative} selectable>
-            {summary.sbar}
+          <Text style={styles.narrative}>
+            Latest triage levels: {summary.triageResults.map((entry) => entry.level).join(', ') || 'None'}
+          </Text>
+          <Text style={styles.narrative}>
+            Symptom trends: {summary.symptomTrends.length ? summary.symptomTrends.map((trend) => `${trend.symptom} (${trend.count})`).join(', ') : 'No symptom trends.'}
+          </Text>
+          <Text style={styles.narrative}>
+            Vitals trends: {summary.vitalsTrends.length ? summary.vitalsTrends.map((trend) => `${trend.metric} avg ${trend.average ?? 'n/a'}`).join(', ') : 'No vitals trends.'}
+          </Text>
+          <Text style={styles.narrative}>
+            Medication adherence (7-day): {summary.medicationAdherence.percentage}% ({summary.medicationAdherence.taken} taken, {summary.medicationAdherence.missed} missed)
+          </Text>
+          <Text style={styles.narrative}>
+            Journal highlights: {summary.journalHighlights.length ? summary.journalHighlights.map((entry) => entry.text).join(' | ') : 'No journal highlights.'}
           </Text>
 
           <View style={styles.divider} />
 
+          <Text style={styles.sectionTitle}>Clinician message (AI drafted)</Text>
+          {clinicianMessage ? <Text style={styles.narrative}>{clinicianMessage}</Text> : null}
+          <Text style={styles.disclaimer}>Not medical advice. AI drafting only.</Text>
+          <ActionButton
+            label={messageLoading ? 'Drafting...' : 'Draft clinician message'}
+            onPress={async () => {
+              if (!summary) return;
+              setMessageLoading(true);
+              try {
+                const prompt = summary.structuredJson;
+                const completion = await getAiResponse('export-summary', prompt);
+                setClinicianMessage(completion);
+                await logAuditEvent({
+                  userRole: summary.profile.caregiverMode,
+                  actionType: 'ai_message_generated',
+                  entity: 'export-summary-message',
+                  metadata: { promptVersion: AI_PROMPT_VERSION_ID },
+                });
+              } catch (error) {
+                console.warn('Unable to draft clinician message.', error);
+                setStatus('Unable to draft clinician message.');
+              } finally {
+                setMessageLoading(false);
+              }
+            }}
+            variant="primary"
+          />
+
           <View style={styles.actionRow}>
             <ActionButton
-              label="Copy SBAR"
+              label="Copy message"
               onPress={async () => {
-                await Clipboard.setStringAsync(summary.sbar);
-                setStatus('SBAR copied to clipboard.');
+                if (clinicianMessage) {
+                  await Clipboard.setStringAsync(clinicianMessage);
+                  setStatus('Clinician message copied to clipboard.');
+                }
               }}
               variant="secondary"
               style={styles.actionButton}
             />
             <ActionButton
-              label="Share SBAR"
+              label="Share message"
+              onPress={async () => {
+                if (clinicianMessage) {
+                  await Share.share({
+                    message: clinicianMessage,
+                    title: 'Clinician Message Draft',
+                  });
+                }
+              }}
+              variant="primary"
+              style={styles.actionButton}
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <Text style={styles.sectionTitle}>Structured JSON</Text>
+          <Text style={styles.narrative} selectable>
+            {summary.structuredJson}
+          </Text>
+          <View style={styles.actionRow}>
+            <ActionButton
+              label="Copy JSON"
+              onPress={async () => {
+                await Clipboard.setStringAsync(summary.structuredJson);
+                setStatus('Structured JSON copied to clipboard.');
+              }}
+              variant="secondary"
+              style={styles.actionButton}
+            />
+            <ActionButton
+              label="Share JSON"
               onPress={async () => {
                 await Share.share({
-                  message: summary.sbar,
-                  title: 'SBAR Export Summary',
+                  message: summary.structuredJson,
+                  title: 'Structured JSON Export Summary',
                 });
               }}
               variant="primary"
@@ -186,6 +246,10 @@ const styles = StyleSheet.create({
   narrative: {
     fontSize: 14,
     color: colors.textPrimary,
+  },
+  disclaimer: {
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   divider: {
     height: 1,

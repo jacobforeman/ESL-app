@@ -12,4 +12,9 @@ describe('scanJournalForRedFlags', () => {
     const matches = scanJournalForRedFlags('Feeling ok today with stable appetite.');
     expect(matches).toEqual([]);
   });
+
+  it('avoids matching negated red flag phrases', () => {
+    const matches = scanJournalForRedFlags('No vomiting blood or black stool today.');
+    expect(matches).toEqual([]);
+  });
 });

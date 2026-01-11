@@ -1,29 +1,13 @@
-import { journalStore, updateStore } from '../storage';
-import { JournalEntry } from '../storage/types';
+import { journalStore, journalSummaryStore, readStore, updateStore } from '../storage';
+import { JournalEntry, JournalSummaryEntry } from '../storage/types';
+import { scanTextForRedFlags } from './redFlags';
 
-const RED_FLAG_KEYWORDS = [
-  'vomited blood',
-  'throwing up blood',
-  'black stool',
-  'bloody stool',
-  'confusion',
-  'severe abdominal pain',
-  'severe belly pain',
-  'high fever',
-  'cannot wake',
-  'passing out',
-  'shortness of breath',
-];
-
-const normalize = (value: string): string => value.toLowerCase();
-
-export const scanJournalForRedFlags = (text: string): string[] => {
-  const normalized = normalize(text);
-  return RED_FLAG_KEYWORDS.filter((keyword) => normalized.includes(keyword));
-};
+export const scanJournalForRedFlags = (text: string): string[] => scanTextForRedFlags(text);
 
 export const addJournalEntry = async (entry: JournalEntry): Promise<JournalEntry> => {
-  const redFlags = scanJournalForRedFlags(entry.text);
+  const redFlags = scanJournalForRedFlags(
+    [entry.text, entry.caregiverNotes].filter(Boolean).join(' '),
+  );
   const enriched: JournalEntry = {
     ...entry,
     redFlags: redFlags.length > 0 ? redFlags : undefined,
@@ -31,4 +15,22 @@ export const addJournalEntry = async (entry: JournalEntry): Promise<JournalEntry
 
   await updateStore(journalStore, (entries) => [enriched, ...entries]);
   return enriched;
+};
+
+export const loadJournalEntries = async (): Promise<JournalEntry[]> => {
+  const { data } = await readStore(journalStore);
+  return data;
+};
+
+export const getJournalEntriesForRange = async (days: number): Promise<JournalEntry[]> => {
+  const { data } = await readStore(journalStore);
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return data.filter((entry) => {
+    const createdAt = new Date(entry.createdAt).getTime();
+    return !Number.isNaN(createdAt) && createdAt >= cutoff;
+  });
+};
+
+export const saveJournalSummary = async (entry: JournalSummaryEntry): Promise<void> => {
+  await updateStore(journalSummaryStore, (entries) => [entry, ...entries]);
 };
