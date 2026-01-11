@@ -6,7 +6,7 @@ const ExportSummaryPlaceholder = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Export Summary</Text>
       <Text style={styles.subtitle}>
-        The export flow will let you download or share a summary of this check-in.
+        This feature is active in basic mode. More advanced tracking can be added later.
       </Text>
     </View>
   );

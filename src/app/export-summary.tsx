@@ -7,6 +7,7 @@ import { buildExportSummary } from '../utils/exportSummary';
 import { readStore } from '../storage';
 import {
   checkInStore,
+  journalStore,
   medAdherenceStore,
   profileStore,
   triageHistoryStore,
@@ -24,13 +25,19 @@ const ExportSummaryScreen = () => {
     setLoading(true);
     setStatus(null);
     try {
-      const [profileEnvelope, checkInsEnvelope, triageEnvelope, medAdherenceEnvelope] =
-        await Promise.all([
-          readStore(profileStore),
-          readStore(checkInStore),
-          readStore(triageHistoryStore),
-          readStore(medAdherenceStore),
-        ]);
+      const [
+        profileEnvelope,
+        checkInsEnvelope,
+        triageEnvelope,
+        medAdherenceEnvelope,
+        journalEnvelope,
+      ] = await Promise.all([
+        readStore(profileStore),
+        readStore(checkInStore),
+        readStore(triageHistoryStore),
+        readStore(medAdherenceStore),
+        readStore(journalStore),
+      ]);
 
       const lastCheckIn = checkInsEnvelope.data[0];
       if (!lastCheckIn) {
@@ -52,6 +59,9 @@ const ExportSummaryScreen = () => {
       const adherenceEntries = medAdherenceEnvelope.data.filter((entry) => entry.date === dateKey);
       const takenCount = adherenceEntries.filter((entry) => entry.taken).length;
       const missedCount = adherenceEntries.filter((entry) => !entry.taken).length;
+      const journalEntries = [...journalEnvelope.data]
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 3);
 
       const nextSummary = buildExportSummary({
         profile: {
@@ -67,6 +77,7 @@ const ExportSummaryScreen = () => {
           takenCount,
           missedCount,
         },
+        journalEntries,
       });
 
       setSummary(nextSummary);

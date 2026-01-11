@@ -16,6 +16,7 @@ const JournalScreen = () => {
   const [text, setText] = useState('');
   const [modeLabel, setModeLabel] = useState<CaregiverMode>('patient');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const patientEntries = entries.filter((entry) => entry.author === 'patient');
   const caregiverEntries = entries.filter((entry) => entry.author === 'caregiver');
@@ -38,6 +39,7 @@ const JournalScreen = () => {
 
   const handleSave = async () => {
     setErrorMessage(null);
+    setAlertMessage(null);
     if (!text.trim()) {
       setErrorMessage('Please add a note before saving.');
       return;
@@ -45,12 +47,17 @@ const JournalScreen = () => {
 
     setLoading(true);
     try {
-      await addJournalEntry({
+      const saved = await addJournalEntry({
         id: createId(),
         createdAt: new Date().toISOString(),
         author: modeLabel === 'caregiver' ? 'caregiver' : 'patient',
         text: text.trim(),
       });
+      if (saved.redFlags?.length) {
+        setAlertMessage(
+          'Red flag keywords detected. Seek emergency care immediately or call local emergency services.',
+        );
+      }
       setText('');
       await loadEntries();
     } catch (error) {
@@ -88,6 +95,7 @@ const JournalScreen = () => {
           onPress={handleSave}
           variant="primary"
         />
+        {alertMessage ? <Text style={styles.alertText}>{alertMessage}</Text> : null}
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </View>
 
@@ -238,6 +246,11 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 13,
     color: '#B91C1C',
+  },
+  alertText: {
+    fontSize: 13,
+    color: '#991B1B',
+    fontWeight: '600',
   },
   emptyText: {
     fontSize: 14,

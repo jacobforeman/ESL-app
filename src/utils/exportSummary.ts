@@ -18,7 +18,8 @@ const formatAdherence = (snapshot: MedAdherenceSnapshot): string => {
   if (!snapshot.entries.length || total === 0) {
     return `No adherence entries recorded for ${snapshot.date}.`;
   }
-  return `${snapshot.takenCount}/${total} doses taken (${snapshot.missedCount} missed) on ${snapshot.date}.`;
+  const percentage = Math.round((snapshot.takenCount / total) * 100);
+  return `${snapshot.takenCount}/${total} doses taken (${percentage}% adherence, ${snapshot.missedCount} missed) on ${snapshot.date}.`;
 };
 
 const triageRecommendation = (triage: ExportSummaryTriageResult): string => {
@@ -36,8 +37,23 @@ const triageRecommendation = (triage: ExportSummaryTriageResult): string => {
   }
 };
 
+const formatJournalNotes = (entries: ExportSummaryPayload['journalEntries']): string => {
+  if (entries.length === 0) {
+    return 'No journal notes recorded.';
+  }
+
+  return entries
+    .map((entry) => {
+      const date = new Date(entry.createdAt).toLocaleDateString();
+      const authorLabel = entry.author === 'caregiver' ? 'Caregiver' : 'Patient';
+      const redFlagLabel = entry.redFlags?.length ? ` (red flags: ${entry.redFlags.join(', ')})` : '';
+      return `${date} · ${authorLabel}: ${entry.text}${redFlagLabel}`;
+    })
+    .join('\n');
+};
+
 export const buildExportSummary = (input: ExportSummaryPayload): ExportSummaryResult => {
-  const { profile, lastCheckIn, triageResult, medsAdherenceSnapshot } = input;
+  const { profile, lastCheckIn, triageResult, medsAdherenceSnapshot, journalEntries } = input;
   const caregiverLabel =
     profile.caregiverMode === 'caregiver' ? 'Caregiver-reported' : 'Patient-reported';
 
@@ -46,13 +62,15 @@ export const buildExportSummary = (input: ExportSummaryPayload): ExportSummaryRe
   const vitals = formatVitals(lastCheckIn.vitals);
   const triageRationale = formatList(triageResult.rationale, 'No triage rationale recorded');
   const adherenceSummary = formatAdherence(medsAdherenceSnapshot);
+  const journalSummary = formatJournalNotes(journalEntries);
 
-  const situation = `Situation: ${profile.name} completed a check-in on ${lastCheckIn.createdAt}. Triage level: ${triageResult.level}.`;
+  const situation = `Situation: ${profile.name} completed a check-in on ${lastCheckIn.createdAt}. Latest triage level: ${triageResult.level}.`;
   const background = `Background: ${caregiverLabel} update. Symptoms: ${symptoms}. Vitals: ${vitals}. Missed meds: ${missedMeds}.`;
   const assessment = `Assessment: ${triageRationale} Medication adherence: ${adherenceSummary}`;
+  const journal = `Journal notes: ${journalSummary}`;
   const recommendation = `Recommendation: ${triageRecommendation(triageResult)}`;
 
-  const sbar = [situation, background, assessment, recommendation].join('\n');
+  const sbar = [situation, background, assessment, journal, recommendation].join('\n');
 
   return {
     summary: {

@@ -2,15 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import ActionButton from '../components/ActionButton';
-import { isAiEnabled, requestStrictAiCompletion } from '../logic/AiHelper';
+import { getAiResponse } from '../logic/AiHelper';
 import { readStore } from '../storage';
 import { profileStore, triageHistoryStore } from '../storage/stores';
 import type { CaregiverMode, TriageHistoryEntry } from '../storage/types';
 import { colors } from '../theme/colors';
-import { getCaregiverPossessive } from '../utils/caregiverPhrasing';
+import { getCaregiverLabel, getCaregiverPossessive } from '../utils/caregiverPhrasing';
 
 const ExplainResultScreen = () => {
-  const aiEnabled = isAiEnabled();
   const [triageResult, setTriageResult] = useState<TriageHistoryEntry | null>(null);
   const [prompt, setPrompt] = useState('');
   const [response, setResponse] = useState('');
@@ -38,11 +37,6 @@ const ExplainResultScreen = () => {
     setStatus(null);
     setResponse('');
 
-    if (!aiEnabled) {
-      setStatus('AI features are unavailable.');
-      return;
-    }
-
     const basePrompt = triageResult
       ? `Explain the latest triage result. Level: ${triageResult.level}. Rationale: ${
           triageResult.rationale?.length ? triageResult.rationale.join(' ') : 'No rationale provided.'
@@ -54,13 +48,7 @@ const ExplainResultScreen = () => {
 
     setLoading(true);
     try {
-      const completion = await requestStrictAiCompletion(
-        'triage-explanation',
-        userPrompt,
-        {
-          apiKey: process.env.OPENAI_API_KEY ?? '',
-        },
-      );
+      const completion = await getAiResponse('triage-explanation', userPrompt);
       setResponse(completion || 'No response returned.');
     } catch (error) {
       console.warn('AI request failed.', error);
@@ -76,15 +64,6 @@ const ExplainResultScreen = () => {
       <Text style={styles.subtitle}>
         Ask the AI companion to explain {getCaregiverPossessive(caregiverMode)} latest triage result in plain language.
       </Text>
-
-      {!aiEnabled ? (
-        <View style={styles.notice}>
-          <Text style={styles.noticeTitle}>AI features are unavailable.</Text>
-          <Text style={styles.noticeBody}>
-            Configure OPENAI_API_KEY to enable AI explanations and message drafts.
-          </Text>
-        </View>
-      ) : null}
 
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>Latest triage</Text>
@@ -106,7 +85,9 @@ const ExplainResultScreen = () => {
       </View>
 
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Add a question</Text>
+        <Text style={styles.sectionTitle}>
+          {getCaregiverLabel(caregiverMode)} question
+        </Text>
         <TextInput
           value={prompt}
           onChangeText={setPrompt}
@@ -203,24 +184,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     fontStyle: 'italic',
-  },
-  notice: {
-    marginTop: 4,
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  noticeTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#991b1b',
-    marginBottom: 4,
-  },
-  noticeBody: {
-    fontSize: 13,
-    color: '#7f1d1d',
   },
 });
 
