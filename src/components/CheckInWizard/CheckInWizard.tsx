@@ -4,9 +4,11 @@ import { z } from 'zod';
 
 import { questionFlowConfig } from '../../config/questionFlow';
 import { buildCheckInSchema } from '../../logic/checkInSchema';
-import { getTodayAdherenceSnapshot } from '../../logic/medTracker';
+import { getTodayAdherenceSnapshot, recordDose } from '../../logic/medTracker';
 import { runTriage } from '../../logic/triageEngine';
 import { appendCheckInHistory } from '../../state/checkInHistory';
+import { readStore } from '../../storage';
+import { journalStore } from '../../storage/stores';
 import { CheckInAnswers, QuestionDefinition, TriageLevel } from '../../types/checkIn';
 import { MedAdherenceSnapshotItem, MedAdherenceStatus } from '../../types/meds';
 import { QuestionRenderer } from './QuestionRenderer';
@@ -64,6 +66,23 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
     );
   };
 
+  const persistAdherenceSnapshot = async () => {
+    const dateKey = new Date().toISOString().slice(0, 10);
+    await Promise.all(
+      adherenceSnapshot
+        .filter((med) => med.status === 'taken' || med.status === 'missed')
+        .map((med) =>
+          recordDose({
+            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            medId: med.medId,
+            date: dateKey,
+            taken: med.status === 'taken',
+            reason: med.status === 'missed' ? 'Marked missed during check-in.' : undefined,
+          }),
+        ),
+    );
+  };
+
   const goNext = () => {
     setErrorMessage(null);
     if (currentIndex < totalSteps - 1) {
@@ -82,9 +101,18 @@ export const CheckInWizard = ({ onComplete }: CheckInWizardProps) => {
     setErrorMessage(null);
     try {
       const validated = schema.parse(answers) as z.infer<typeof schema>;
-      const triageResult = runTriage({ answers: validated, medAdherence: adherenceSnapshot });
+      const { data: journalEntries } = await readStore(journalStore);
+      const recentJournalFlags = journalEntries
+        .slice(0, 3)
+        .flatMap((entry) => entry.redFlags ?? []);
+      const triageResult = runTriage({
+        answers: validated,
+        medAdherence: adherenceSnapshot,
+        journalRedFlags: recentJournalFlags,
+      });
+      await persistAdherenceSnapshot();
       const entry = await appendCheckInHistory(validated, triageResult);
-      onComplete(triageResult, entry.checkIn.id);
+      onComplete(triageResult.level, entry.checkIn.id);
     } catch (error) {
       if (error instanceof z.ZodError) {
         const firstError = error.errors[0];

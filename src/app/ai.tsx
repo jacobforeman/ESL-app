@@ -11,6 +11,10 @@ const TASK_OPTIONS: Array<{ label: string; value: AiTask }> = [
   { label: 'Draft a doctor message', value: 'doctor-message-draft' },
 ];
 
+const AI_FALLBACK_RESPONSE =
+  'AI features are unavailable because OPENAI_API_KEY is not configured. ' +
+  'Add an API key to enable AI explanations and message drafts.';
+
 const AiScreen = () => {
   const aiEnabled = isAiEnabled();
   const [task, setTask] = useState<AiTask>('check-in-question');
@@ -30,6 +34,7 @@ const AiScreen = () => {
 
     if (!aiEnabled) {
       setStatus('AI features are unavailable.');
+      setResponse(AI_FALLBACK_RESPONSE);
       return;
     }
 

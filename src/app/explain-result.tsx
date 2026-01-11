@@ -8,6 +8,10 @@ import { triageHistoryStore } from '../storage/stores';
 import type { TriageHistoryEntry } from '../storage/types';
 import { colors } from '../theme/colors';
 
+const AI_FALLBACK_RESPONSE =
+  'AI features are unavailable because OPENAI_API_KEY is not configured. ' +
+  'Add an API key to enable AI explanations and message drafts.';
+
 const ExplainResultScreen = () => {
   const aiEnabled = isAiEnabled();
   const [triageResult, setTriageResult] = useState<TriageHistoryEntry | null>(null);
@@ -34,6 +38,7 @@ const ExplainResultScreen = () => {
 
     if (!aiEnabled) {
       setStatus('AI features are unavailable.');
+      setResponse(AI_FALLBACK_RESPONSE);
       return;
     }
 

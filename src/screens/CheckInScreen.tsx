@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import { appendCheckInHistory } from '../state/checkInHistory';
-import { CheckInAnswers, TriageLevel } from '../types/checkIn';
+import { CheckInAnswers } from '../types/checkIn';
+import { TriageDecision } from '../logic/triageEngine';
 import type { TriageHistoryEntry } from '../storage/types';
 
 type CheckInScreenProps = {
@@ -24,11 +25,15 @@ const CheckInScreen = ({ onResultSaved }: CheckInScreenProps) => {
       notes: 'Increased fatigue compared to yesterday.',
     };
 
-    const triageResult: TriageLevel = 'routine';
+    const triageResult: TriageDecision = {
+      level: 'routine',
+      rationale: ['Sample triage note saved from demo check-in.'],
+      recommendedAction: 'Discuss this at your next appointment.',
+    };
     const entry = await appendCheckInHistory(answers, triageResult);
     onResultSaved({
       ...entry.triage,
-      rationale: ['Sample triage note saved from demo check-in.'],
+      rationale: triageResult.rationale,
     });
 
     setIsSubmitting(false);

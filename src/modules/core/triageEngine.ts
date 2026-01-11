@@ -1,8 +1,14 @@
+import { MedAdherenceSnapshotItem } from "../../types/meds";
 import { CheckIn, TriageResult } from "./validationSchemas";
+
+type TriageInput = CheckIn & {
+  medAdherence?: MedAdherenceSnapshotItem[];
+  journalRedFlags?: string[];
+};
 
 type Rule = {
   reason: string;
-  isMatch: (checkIn: CheckIn) => boolean;
+  isMatch: (checkIn: TriageInput) => boolean;
 };
 
 const getTemperatureC = (checkIn: CheckIn): number | undefined =>
@@ -16,6 +22,35 @@ const hasFever = (checkIn: CheckIn): boolean => {
   const temperatureC = getTemperatureC(checkIn);
   return typeof temperatureC === "number" && temperatureC >= 38;
 };
+
+const hasCriticalMissed = (checkIn: TriageInput): boolean =>
+  checkIn.medAdherence?.some((med) => med.isCritical && med.status === "missed") ?? false;
+
+const hasMissedMeds = (checkIn: TriageInput): boolean =>
+  checkIn.medAdherence?.some((med) => med.status === "missed") ?? false;
+
+const emergencyRedFlags = new Set([
+  "vomited blood",
+  "throwing up blood",
+  "black stool",
+  "bloody stool",
+  "cannot wake",
+  "passing out",
+]);
+
+const urgentRedFlags = new Set([
+  "confusion",
+  "severe abdominal pain",
+  "severe belly pain",
+  "high fever",
+  "shortness of breath",
+]);
+
+const hasEmergencyJournalFlags = (checkIn: TriageInput): boolean =>
+  checkIn.journalRedFlags?.some((flag) => emergencyRedFlags.has(flag)) ?? false;
+
+const hasUrgentJournalFlags = (checkIn: TriageInput): boolean =>
+  checkIn.journalRedFlags?.some((flag) => urgentRedFlags.has(flag)) ?? false;
 
 const emergencyRules: Rule[] = [
   {
@@ -47,6 +82,10 @@ const emergencyRules: Rule[] = [
     isMatch: (checkIn) =>
       typeof checkIn.vitals?.systolicBP === "number" &&
       checkIn.vitals.systolicBP < 90,
+  },
+  {
+    reason: "Journal notes mention red-flag symptoms like bleeding or loss of consciousness.",
+    isMatch: (checkIn) => hasEmergencyJournalFlags(checkIn),
   },
 ];
 
@@ -97,6 +136,14 @@ const urgentRules: Rule[] = [
       return typeof heartRate === "number" && heartRate >= 110;
     },
   },
+  {
+    reason: "Missing critical medications can quickly worsen ESLD symptoms.",
+    isMatch: (checkIn) => hasCriticalMissed(checkIn),
+  },
+  {
+    reason: "Journal entries mention urgent red-flag symptoms needing same-day review.",
+    isMatch: (checkIn) => hasUrgentJournalFlags(checkIn),
+  },
 ];
 
 const routineRules: Rule[] = [
@@ -120,6 +167,10 @@ const routineRules: Rule[] = [
     reason: "Persistent abdominal discomfort should be mentioned at follow-up.",
     isMatch: (checkIn) => checkIn.symptoms.abdominalPain,
   },
+  {
+    reason: "Missed medications should be discussed with your care team.",
+    isMatch: (checkIn) => hasMissedMeds(checkIn),
+  },
 ];
 
 const buildResult = (
@@ -132,10 +183,10 @@ const buildResult = (
   recommendedAction,
 });
 
-const applyRules = (rules: Rule[], checkIn: CheckIn): string[] =>
+const applyRules = (rules: Rule[], checkIn: TriageInput): string[] =>
   rules.filter((rule) => rule.isMatch(checkIn)).map((rule) => rule.reason);
 
-export const evaluateTriage = (checkIn: CheckIn): TriageResult => {
+export const evaluateTriage = (checkIn: TriageInput): TriageResult => {
   const emergencyReasons = applyRules(emergencyRules, checkIn);
   if (emergencyReasons.length > 0) {
     return buildResult(

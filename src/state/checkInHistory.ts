@@ -1,6 +1,7 @@
 import { checkInStore, readStore, triageHistoryStore, updateStore } from '../storage';
 import { CheckIn, TriageHistoryEntry } from '../storage/types';
-import { CheckInAnswers, TriageLevel } from '../types/checkIn';
+import { CheckInAnswers } from '../types/checkIn';
+import { TriageDecision } from '../logic/triageEngine';
 
 const createId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -58,15 +59,15 @@ export const loadTriageHistory = async (): Promise<TriageHistoryEntry[]> => {
 
 export const appendCheckInHistory = async (
   answers: CheckInAnswers,
-  result: TriageLevel,
+  result: TriageDecision,
 ): Promise<{ checkIn: CheckIn; triage: TriageHistoryEntry }> => {
   const checkIn = buildCheckInEntry(answers);
   const triageEntry: TriageHistoryEntry = {
     id: createId(),
     checkInId: checkIn.id,
     createdAt: checkIn.createdAt,
-    level: result,
-    rationale: [],
+    level: result.level,
+    rationale: result.rationale ?? [],
   };
 
   await updateStore(checkInStore, (entries) => [checkIn, ...entries]);
